@@ -108,5 +108,7 @@ export function checkLevelCompletion(
 export function updateDifficulty(score, speed) {
   // Increase speed as score increases, but with a more gradual curve
   // This makes the game get harder more gradually
-  return 0.2 + Math.min(0.5, score / 2000);
+  // return 0.2 + Math.min(0.5, score / 2000);
+  // Return initial speed to keep it constant
+  return GAME_SETTINGS.initialSpeed;
 }

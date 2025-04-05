@@ -656,9 +656,6 @@ function update() {
         level++;
         updateLevel(level);
 
-        // Update speed based on level
-        speed += 0.05;
-
         // No need to generate platforms here since they were already generated at 75% threshold
         // Just update the level counter and background color
 
@@ -678,7 +675,7 @@ function update() {
     }
 
     // Increase speed as score increases
-    speed = updateDifficulty(score, speed);
+    // speed = updateDifficulty(score, speed);
   }
 }
 

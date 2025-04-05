@@ -192,59 +192,54 @@ export function updateBallPosition(
  * Apply platform collision effects to the ball
  * @param {Object} platformInfo - Information about the platform collision
  * @param {number} speed - Current game speed
+ * @returns {number} The potentially updated game speed
  */
 export function applyPlatformEffects(platformInfo, speed) {
+  // Check if the ball just landed on a platform (velocity is downward)
   if (platformInfo.onPlatform && ballVelocity.y < 0) {
-    // No bounce back effect - just stop the ball
+    // Reset vertical velocity and flags upon landing
     ballVelocity.y = 0;
     isJumping = false;
-    hasDoubleJumped = false; // Reset double jump flag when landing
-    airEntryMethod = ""; // Reset air entry method when landing
-    // Do NOT reset extra jumps when landing - they should persist until used
+    hasDoubleJumped = false; // Reset double jump flag
+    airEntryMethod = ""; // Reset air entry method
 
-    // If it's a regular trampoline, bounce with reduced force
-    if (platformInfo.isTrampoline) {
-      ballVelocity.y = GAME_SETTINGS.maxJumpForce * 1.5; // Reduced bounce on trampolines
-      isJumping = true;
-      airEntryMethod = "bounced"; // Set air entry method to bounced
+    // Apply bounce effect based on the platform type
+    switch (platformInfo.bounceEffect) {
+      case "forward":
+        // Speed-up (Green) Platform: Bounce up, slightly forward impulse, and slightly increase base speed
+        ballVelocity.y = GAME_SETTINGS.maxJumpForce * 1.5; // Standard bounce force
+        ballVelocity.z -= 0.1; // Keep small forward impulse
+        speed += 0.025; // Increase the base forward speed by 25% of the previous increment (0.1 * 0.25)
+        isJumping = true;
+        airEntryMethod = "bounced";
+        // console.log("Speed-up bounce! New Speed:", speed); // Optional debug log
+        break;
+
+      case "backward":
+        // Slow-down (Orange) Platform: Bounce up, backward impulse, and decrease base speed
+        ballVelocity.y = GAME_SETTINGS.maxJumpForce * 1.5; // Standard bounce force
+        ballVelocity.z += 0.2; // Keep backward impulse
+        speed -= 0.05; // Decrease the base forward speed (adjust value as needed)
+        // Ensure speed doesn't become too low or negative
+        if (speed < GAME_SETTINGS.minSpeed) {
+          speed = GAME_SETTINGS.minSpeed; // Assuming GAME_SETTINGS.minSpeed exists, otherwise use a small positive value like 0.1
+        }
+        isJumping = true;
+        airEntryMethod = "bounced";
+        // console.log("Slow-down bounce! New Speed:", speed); // Optional debug log
+        break;
+
+      default:
+        // Regular platform or no bounce effect defined
+        // Just landing, velocity already set to 0 above.
+        break;
     }
 
-    // If it's a diagonal trampoline, apply diagonal velocity
-    if (platformInfo.isDiagonalTrampoline) {
-      // Set vertical velocity for the bounce
-      ballVelocity.y = GAME_SETTINGS.maxJumpForce * 1.4; // Reduced bounce on diagonal trampolines
-      isJumping = true;
-      airEntryMethod = "bounced"; // Set air entry method to bounced
-
-      // Apply horizontal velocity based on the diagonal direction
-      const diagonalForce = 0.3; // Horizontal force for diagonal jumps
-
-      switch (platformInfo.diagonalDirection) {
-        case "left-forward":
-          ballVelocity.x = -diagonalForce; // Move left
-          speed += 0.1; // Temporary speed boost forward
-          break;
-        case "right-forward":
-          ballVelocity.x = diagonalForce; // Move right
-          speed += 0.1; // Temporary speed boost forward
-          break;
-        case "left-backward":
-          ballVelocity.x = -diagonalForce; // Move left
-          speed -= 0.1; // Temporary slow down
-          break;
-        case "right-backward":
-          ballVelocity.x = diagonalForce; // Move right
-          speed -= 0.1; // Temporary slow down
-          break;
-      }
-
-      // Ensure speed doesn't go negative or too slow
-      if (speed < 0.1) speed = 0.1;
-    }
-
+    // Return the potentially modified speed
     return speed;
   }
 
+  // If not on a platform or moving upwards, return the current speed
   return speed;
 }
 

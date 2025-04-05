@@ -193,112 +193,64 @@ export function createPlatform(isRedFlag = false, scene, level = 1) {
 
   // For red flag platform, make it a big round red platform and always a trampoline
   let isTrampoline = false;
-  let isDiagonalTrampoline = false;
+  let isSlowDownTrampoline = false;
   let platformColor;
   let isRoundPlatform = false;
   let platformRadius = 0;
+  let bounceEffect = null;
 
   if (isRedFlag) {
     // Red flag platform is always a trampoline and round
     isTrampoline = true;
+    isSlowDownTrampoline = false;
+    bounceEffect = "forward";
     isRoundPlatform = true;
     platformRadius = 12; // Bigger round platform for better visibility
     platformColor = PLATFORM_COLORS.redFlag;
   } else {
-    // Choose platform type - regular, trampoline, or diagonal trampoline
+    // Choose platform type - regular, speed-up (trampoline), or slow-down
     const platformTypeRoll = Math.random();
-    isTrampoline = platformTypeRoll < 0.15; // 15% chance for a trampoline
-    isDiagonalTrampoline = platformTypeRoll >= 0.15 && platformTypeRoll < 0.25; // 10% chance for diagonal trampoline
-
-    // Determine platform color based on type
-    if (isTrampoline) {
+    if (platformTypeRoll < 0.167) {
+      isTrampoline = true;
+      isSlowDownTrampoline = false;
+      bounceEffect = "forward";
       platformColor = PLATFORM_COLORS.trampoline;
-    } else if (isDiagonalTrampoline) {
+    } else if (platformTypeRoll < 0.25) {
+      isTrampoline = false;
+      isSlowDownTrampoline = true;
+      bounceEffect = "backward";
       platformColor = PLATFORM_COLORS.diagonal;
     } else {
+      isTrampoline = false;
+      isSlowDownTrampoline = false;
+      bounceEffect = null;
       platformColor = PLATFORM_COLORS.regular;
     }
   }
 
-  // Determine diagonal direction for diagonal trampolines
-  let diagonalDirection = null;
-  if (isDiagonalTrampoline) {
-    // Choose a random diagonal direction
-    const directionRoll = Math.random();
-    if (directionRoll < 0.25) {
-      diagonalDirection = "left-forward"; // Bounce left and forward
-    } else if (directionRoll < 0.5) {
-      diagonalDirection = "right-forward"; // Bounce right and forward
-    } else if (directionRoll < 0.75) {
-      diagonalDirection = "left-backward"; // Bounce left and backward
-    } else {
-      diagonalDirection = "right-backward"; // Bounce right and backward
-    }
-  }
+  // Define colors and inner scale for trampoline look
+  const innerTrampolineColor = 0x333333; // Dark grey
+  const innerScaleFactor = 0.8; // 80% inner area
 
-  // Create the appropriate geometry based on platform type
-  let geometry, material, platform;
-
-  if (isRoundPlatform) {
-    // Create a cylinder for round platforms
-    geometry = new THREE.CylinderGeometry(
-      platformRadius,
-      platformRadius,
-      1,
-      32
-    );
-    material = new THREE.MeshStandardMaterial({
-      color: platformColor,
-      roughness: 0.5,
-      metalness: 0.3,
-      emissive: platformColor, // Make it glow
-      emissiveIntensity: 0.5,
-    });
-    platform = new THREE.Mesh(geometry, material);
-    // Rotate the cylinder to be flat (cylinder's height is along the Y-axis by default)
-    platform.rotation.x = Math.PI / 2;
-  } else {
-    // Create a box for regular platforms
-    geometry = new THREE.BoxGeometry(platformWidth, 1, platformDepth);
-    material = new THREE.MeshStandardMaterial({
-      color: platformColor,
-      roughness: 0.7,
-      metalness: 0.1,
-    });
-    platform = new THREE.Mesh(geometry, material);
-  }
-  platform.position.set(nextX, nextY, nextZ);
-  platform.receiveShadow = true;
-
-  // Determine if this will be a moving platform (not for red flag platforms)
+  // --- Determine if it's a Moving Platform FIRST ---
+  // This needs to be known before setting the final color for regular platforms.
   let isMovingPlatform = false;
   let movementType = null;
+  let finalPlatformColor = platformColor; // Start with the color determined by bounce type
 
-  // Only regular platforms can be moving platforms (not trampolines, diagonal trampolines, or red flag platforms)
-  if (!isRedFlag && !isTrampoline && !isDiagonalTrampoline) {
-    // Check if level ends with 5 (all platforms moving)
-    if (level % 10 === 5) {
+  // Only regular platforms can be moving platforms (not trampolines, slow-down, or red flag platforms)
+  // Check !bounceEffect which covers null/undefined (regular platforms)
+  if (!isRedFlag && !bounceEffect) {
+    // Check level conditions or random chance for moving
+    if (
+      level % 10 === 5 || // Level ends in 5: all move
+      level % 10 === 4 || // Level ends in 4: all move (H/V)
+      (level % 10 === 2 && Math.random() < 0.5) || // Level ends in 2: 50% move
+      Math.random() < 0.1
+    ) {
+      // Other levels: 10% move
       isMovingPlatform = true;
-    }
-    // Check if level ends with 4 (all platforms moving, but only horizontal and vertical)
-    else if (level % 10 === 4) {
-      isMovingPlatform = true;
-    }
-    // Check if level ends with 2 (half the platforms moving)
-    else if (level % 10 === 2 && Math.random() < 0.5) {
-      isMovingPlatform = true;
-    }
-    // Default 10% chance for moving platforms on other levels
-    else if (Math.random() < 0.1) {
-      isMovingPlatform = true;
-    }
-
-    // If it's a moving platform, set color and choose movement type
-    if (isMovingPlatform) {
-      platformColor = PLATFORM_COLORS.moving;
-
-      // Update the platform's material color
-      platform.material.color.set(PLATFORM_COLORS.moving);
+      finalPlatformColor = PLATFORM_COLORS.moving; // Update the color *if* it becomes moving
 
       // Choose a random movement type
       if (level % 10 === 4) {
@@ -314,6 +266,126 @@ export function createPlatform(isRedFlag = false, scene, level = 1) {
     }
   }
 
+  // --- Create Geometry and Material(s) ---
+  let geometry,
+    material,
+    platform,
+    innerMesh = null;
+  const tiltAngle = 10; // Degrees
+
+  if (bounceEffect === "forward" || bounceEffect === "backward") {
+    // --- Trampoline Platform (Green or Orange) ---
+    const outerColor =
+      bounceEffect === "forward"
+        ? PLATFORM_COLORS.trampoline
+        : PLATFORM_COLORS.diagonal;
+
+    if (isRoundPlatform) {
+      // Round Trampoline (Red Flag uses this path too)
+      const outerRadius = platformRadius;
+      const innerRadius = outerRadius * innerScaleFactor;
+
+      // Base (Outer Ring)
+      geometry = new THREE.CylinderGeometry(outerRadius, outerRadius, 1, 32);
+      material = new THREE.MeshStandardMaterial({
+        color: isRedFlag ? PLATFORM_COLORS.redFlag : outerColor, // Use red for red flag
+        roughness: 0.5,
+        metalness: 0.3,
+        ...(isRedFlag && {
+          emissive: PLATFORM_COLORS.redFlag,
+          emissiveIntensity: 0.5,
+        }), // Glow for red flag
+      });
+      platform = new THREE.Mesh(geometry, material);
+      // Apply base rotation + REVERSED tilt
+      const tiltRadians = THREE.MathUtils.degToRad(
+        bounceEffect === "forward" ? -tiltAngle : tiltAngle
+      ); // Reversed signs
+      platform.rotation.x = Math.PI / 2 + tiltRadians;
+
+      // Inner Surface (Dark Grey)
+      const innerGeometry = new THREE.CylinderGeometry(
+        innerRadius,
+        innerRadius,
+        1.05,
+        32
+      ); // Slightly taller
+      const innerMaterial = new THREE.MeshStandardMaterial({
+        color: innerTrampolineColor,
+        roughness: 0.7,
+        metalness: 0.1,
+      });
+      innerMesh = new THREE.Mesh(innerGeometry, innerMaterial);
+      innerMesh.rotation.x = Math.PI / 2; // Inner mesh stays flat relative to parent tilt
+      innerMesh.position.y = 0.05; // Raise slightly
+      platform.add(innerMesh); // Add inner mesh as child
+    } else {
+      // Rectangular Trampoline
+      const outerWidth = platformWidth;
+      const outerDepth = platformDepth;
+      const innerWidth = outerWidth * innerScaleFactor;
+      const innerDepth = outerDepth * innerScaleFactor;
+
+      // Base (Outer Frame)
+      geometry = new THREE.BoxGeometry(outerWidth, 1, outerDepth);
+      material = new THREE.MeshStandardMaterial({
+        color: outerColor,
+        roughness: 0.7,
+        metalness: 0.1,
+      });
+      platform = new THREE.Mesh(geometry, material);
+      // Apply REVERSED tilt
+      platform.rotation.x = THREE.MathUtils.degToRad(
+        bounceEffect === "forward" ? -tiltAngle : tiltAngle
+      ); // Reversed signs
+
+      // Inner Surface (Dark Grey)
+      const innerGeometry = new THREE.BoxGeometry(innerWidth, 1.05, innerDepth); // Slightly taller
+      const innerMaterial = new THREE.MeshStandardMaterial({
+        color: innerTrampolineColor,
+        roughness: 0.7,
+        metalness: 0.1,
+      });
+      innerMesh = new THREE.Mesh(innerGeometry, innerMaterial);
+      innerMesh.position.y = 0.05; // Raise slightly
+      platform.add(innerMesh); // Add inner mesh as child
+    }
+    // Shadows for inner mesh too if needed (might be minor)
+    if (innerMesh) innerMesh.castShadow = true;
+  } else {
+    // --- Regular or Moving Platform (Solid Color) ---
+    if (isRoundPlatform) {
+      // Should not happen for regular/moving, but handle defensively
+      geometry = new THREE.CylinderGeometry(
+        platformRadius,
+        platformRadius,
+        1,
+        32
+      );
+      material = new THREE.MeshStandardMaterial({
+        color: finalPlatformColor,
+        roughness: 0.7,
+        metalness: 0.1,
+      });
+      platform = new THREE.Mesh(geometry, material);
+      // Ensure no accidental tilt for regular platforms if they are round
+      platform.rotation.x = Math.PI / 2;
+    } else {
+      geometry = new THREE.BoxGeometry(platformWidth, 1, platformDepth);
+      material = new THREE.MeshStandardMaterial({
+        color: finalPlatformColor,
+        roughness: 0.7,
+        metalness: 0.1,
+      });
+      platform = new THREE.Mesh(geometry, material);
+    }
+  }
+
+  // Set position and shadows for the main platform group
+  platform.position.set(nextX, nextY, nextZ);
+  platform.receiveShadow = true;
+  platform.castShadow = true; // Main platform should cast shadow
+
   // Store the platform's dimensions and properties for collision detection
   platform.userData = {
     width: isRoundPlatform ? platformRadius * 2 : platformWidth,
@@ -321,26 +393,26 @@ export function createPlatform(isRedFlag = false, scene, level = 1) {
     radius: isRoundPlatform ? platformRadius : 0,
     isRoundPlatform: isRoundPlatform,
     isTrampoline: isTrampoline,
-    isDiagonalTrampoline: isDiagonalTrampoline,
-    diagonalDirection: diagonalDirection,
+    isSlowDownTrampoline: isSlowDownTrampoline,
+    bounceEffect: bounceEffect,
     type: lastPlatformType,
     isRedFlagPlatform: isRedFlag,
     isMovingPlatform: isMovingPlatform,
     movementType: movementType,
+    ...(isMovingPlatform && {
+      originalPosition: {
+        x: platform.position.x,
+        y: platform.position.y,
+        z: platform.position.z,
+      },
+      movementProgress: Math.random() * Math.PI * 2,
+      movementSpeed: PLATFORM_MOVEMENT.baseSpeed,
+      lastPosition: { ...platform.position },
+    }),
   };
 
-  // If it's a moving platform, add movement properties
+  // If it's a moving platform, add movement properties and indicator
   if (isMovingPlatform) {
-    // Set movement properties based on type
-    platform.userData.originalPosition = {
-      x: platform.position.x,
-      y: platform.position.y,
-      z: platform.position.z,
-    };
-    platform.userData.movementProgress = Math.random() * Math.PI * 2; // Random starting phase
-    platform.userData.movementSpeed = PLATFORM_MOVEMENT.baseSpeed;
-    platform.userData.lastPosition = { ...platform.position }; // For collision handling
-
     // Set movement-specific properties
     switch (movementType) {
       case "horizontal":
@@ -354,7 +426,7 @@ export function createPlatform(isRedFlag = false, scene, level = 1) {
           x: PLATFORM_MOVEMENT.diagonalRange,
           y: PLATFORM_MOVEMENT.diagonalRange,
         };
-        platform.userData.diagonalDirection = Math.random() < 0.5 ? 1 : -1; // Direction modifier
+        platform.userData.diagonalDirection = Math.random() < 0.5 ? 1 : -1;
         break;
       case "orbital":
         platform.userData.orbitalRadius = PLATFORM_MOVEMENT.orbitalRadius;
@@ -364,7 +436,7 @@ export function createPlatform(isRedFlag = false, scene, level = 1) {
         break;
       case "pendulum":
         platform.userData.pendulumLength = PLATFORM_MOVEMENT.pendulumLength;
-        platform.userData.pendulumAxis = Math.random() < 0.5 ? "x" : "y"; // Swing axis
+        platform.userData.pendulumAxis = Math.random() < 0.5 ? "x" : "y";
         break;
     }
 
@@ -412,32 +484,55 @@ export function createStartingPlatforms(scene) {
   lastPlatformType = "center";
   redFlagPlatform = null;
 
-  // Create a green trampoline as the first platform
+  // Create a green trampoline as the first platform (speed-up)
   const trampolineWidth = 10;
   const trampolineDepth = 10;
+  const innerTrampolineColor = 0x333333; // Dark grey
+  const innerScaleFactor = 0.8; // 80% inner area
+  const tiltAngle = 10; // Degrees
 
+  // Base (Outer Frame - Green)
   const trampolineGeometry = new THREE.BoxGeometry(
     trampolineWidth,
     1,
     trampolineDepth
   );
   const trampolineMaterial = new THREE.MeshStandardMaterial({
-    color: PLATFORM_COLORS.trampoline,
+    color: PLATFORM_COLORS.trampoline, // Green
     roughness: 0.7,
     metalness: 0.1,
   });
-
   const trampoline = new THREE.Mesh(trampolineGeometry, trampolineMaterial);
+
+  // Apply REVERSED forward tilt (now backward)
+  trampoline.rotation.x = THREE.MathUtils.degToRad(-tiltAngle); // Reversed sign
+
+  // Inner Surface (Dark Grey)
+  const innerWidth = trampolineWidth * innerScaleFactor;
+  const innerDepth = trampolineDepth * innerScaleFactor;
+  const innerGeometry = new THREE.BoxGeometry(innerWidth, 1.05, innerDepth); // Slightly taller
+  const innerMaterial = new THREE.MeshStandardMaterial({
+    color: innerTrampolineColor,
+    roughness: 0.7,
+    metalness: 0.1,
+  });
+  const innerMesh = new THREE.Mesh(innerGeometry, innerMaterial);
+  innerMesh.position.y = 0.05; // Raise slightly
+  trampoline.add(innerMesh); // Add inner mesh as child
+
+  // Position and shadows
   trampoline.position.set(0, 0, 0);
   trampoline.receiveShadow = true;
+  trampoline.castShadow = true;
+  if (innerMesh) innerMesh.castShadow = true;
 
-  // Store the platform's dimensions and properties for collision detection
+  // Store the platform's dimensions and properties for collision detection (using base dimensions)
   trampoline.userData = {
     width: trampolineWidth,
     depth: trampolineDepth,
     isTrampoline: true,
-    isDiagonalTrampoline: false,
-    diagonalDirection: null,
+    isSlowDownTrampoline: false,
+    bounceEffect: "forward",
     type: "center",
   };
 
@@ -489,9 +584,6 @@ export function generateNewLevel(level, speed, scene) {
   // Reset red flag platform reached flag
   const redFlagPlatformReached = false;
 
-  // Increase difficulty based on level
-  speed += 0.05; // Increase speed
-
   // Remove all existing platforms and their indicators
   platforms.forEach((platform) => {
     // Remove movement indicators if they exist
@@ -518,7 +610,7 @@ export function generateNewLevel(level, speed, scene) {
   lastPlatformPosition = { x: redFlagX, y: redFlagY, z: redFlagZ };
   lastPlatformType = "center";
 
-  // Create the red flag platform
+  // Create the red flag platform (which is a speed-up trampoline)
   createPlatform(true, scene, level);
 
   // Calculate adjusted platform count based on level
@@ -528,37 +620,9 @@ export function generateNewLevel(level, speed, scene) {
     Math.floor(GAME_SETTINGS.platformsPerLevel * (1 - level * 0.02))
   );
 
-  // Generate more platforms for the next level with increasing difficulty
+  // Generate regular platforms for the next level with increasing difficulty
   for (let i = 0; i < platformCount; i++) {
     createPlatform(false, scene, level);
-  }
-
-  // Add some special platforms based on level
-  const specialPlatformCount = Math.min(5, Math.floor(level / 2));
-  for (let i = 0; i < specialPlatformCount; i++) {
-    // These will be trampolines or diagonal trampolines
-    const specialPlatform = createPlatform(false, scene, level);
-
-    // Force it to be a trampoline or diagonal trampoline
-    if (Math.random() < 0.5) {
-      specialPlatform.userData.isTrampoline = true;
-      specialPlatform.userData.isDiagonalTrampoline = false;
-      specialPlatform.material.color.set(PLATFORM_COLORS.trampoline);
-    } else {
-      specialPlatform.userData.isTrampoline = false;
-      specialPlatform.userData.isDiagonalTrampoline = true;
-      specialPlatform.material.color.set(PLATFORM_COLORS.diagonal);
-
-      // Assign a random diagonal direction
-      const directions = [
-        "left-forward",
-        "right-forward",
-        "left-backward",
-        "right-backward",
-      ];
-      specialPlatform.userData.diagonalDirection =
-        directions[Math.floor(Math.random() * directions.length)];
-    }
   }
 
   return {
@@ -578,7 +642,10 @@ export function checkPlatformCollision(ballPosition, ballVelocity) {
   const ballRadius = 1.0;
 
   for (const platform of platforms) {
-    // Check if this is a round platform
+    let collisionDetected = false;
+    let platformY = 0;
+
+    // Check collision based on platform shape
     if (platform.userData.isRoundPlatform) {
       // For round platforms, use distance-based collision detection
       const dx = ballPosition.x - platform.position.x;
@@ -593,16 +660,8 @@ export function checkPlatformCollision(ballPosition, ballVelocity) {
           0.5 &&
         ballVelocity.y <= 0 // Only count as collision when falling or stationary
       ) {
-        // Return platform collision info
-        return {
-          onPlatform: true,
-          isTrampoline: platform.userData.isTrampoline,
-          isDiagonalTrampoline: platform.userData.isDiagonalTrampoline,
-          diagonalDirection: platform.userData.diagonalDirection,
-          isRedFlagPlatform: platform.userData.isRedFlagPlatform,
-          platformY: platform.position.y + 0.5,
-          ballRadius: ballRadius,
-        };
+        collisionDetected = true;
+        platformY = platform.position.y + 0.5;
       }
     } else {
       // For rectangular platforms, use the existing box collision detection
@@ -615,7 +674,6 @@ export function checkPlatformCollision(ballPosition, ballVelocity) {
       };
 
       // Improved collision detection that accounts for the ball's radius
-      // This creates more accurate collisions at the edges of platforms
       if (
         ballPosition.x + ballRadius * 0.8 >= platformBounds.minX &&
         ballPosition.x - ballRadius * 0.8 <= platformBounds.maxX &&
@@ -624,25 +682,27 @@ export function checkPlatformCollision(ballPosition, ballVelocity) {
         Math.abs(ballPosition.y - ballRadius - platformBounds.y) <= 0.5 &&
         ballVelocity.y <= 0 // Only count as collision when falling or stationary
       ) {
-        // Return platform collision info
-        return {
-          onPlatform: true,
-          isTrampoline: platform.userData.isTrampoline,
-          isDiagonalTrampoline: platform.userData.isDiagonalTrampoline,
-          diagonalDirection: platform.userData.diagonalDirection,
-          isRedFlagPlatform: platform.userData.isRedFlagPlatform,
-          platformY: platformBounds.y,
-          ballRadius: ballRadius,
-        };
+        collisionDetected = true;
+        platformY = platformBounds.y;
       }
+    }
+
+    // If collision detected, return relevant info including the bounce effect
+    if (collisionDetected) {
+      return {
+        onPlatform: true,
+        bounceEffect: platform.userData.bounceEffect,
+        isRedFlagPlatform: platform.userData.isRedFlagPlatform,
+        platformY: platformY,
+        ballRadius: ballRadius,
+      };
     }
   }
 
+  // No collision
   return {
     onPlatform: false,
-    isTrampoline: false,
-    isDiagonalTrampoline: false,
-    diagonalDirection: null,
+    bounceEffect: null,
     isRedFlagPlatform: false,
   };
 }
@@ -990,7 +1050,9 @@ export function getCurrentPlatform(ballPosition, ballVelocity) {
   const ballRadius = 1.0;
 
   for (const platform of platforms) {
-    // Check if this is a round platform
+    let collisionDetected = false;
+
+    // Check collision based on platform shape
     if (platform.userData.isRoundPlatform) {
       // For round platforms, use distance-based collision detection
       const dx = ballPosition.x - platform.position.x;
@@ -1005,7 +1067,7 @@ export function getCurrentPlatform(ballPosition, ballVelocity) {
           0.5 &&
         ballVelocity.y <= 0 // Only count as collision when falling or stationary
       ) {
-        return platform;
+        collisionDetected = true;
       }
     } else {
       // For rectangular platforms, use the existing box collision detection
@@ -1018,7 +1080,6 @@ export function getCurrentPlatform(ballPosition, ballVelocity) {
       };
 
       // Improved collision detection that accounts for the ball's radius
-      // This creates more accurate collisions at the edges of platforms
       if (
         ballPosition.x + ballRadius * 0.8 >= platformBounds.minX &&
         ballPosition.x - ballRadius * 0.8 <= platformBounds.maxX &&
@@ -1027,9 +1088,13 @@ export function getCurrentPlatform(ballPosition, ballVelocity) {
         Math.abs(ballPosition.y - ballRadius - platformBounds.y) <= 0.5 &&
         ballVelocity.y <= 0 // Only count as collision when falling or stationary
       ) {
-        return platform;
+        collisionDetected = true;
       }
     }
+
+    if (collisionDetected) {
+      return platform; // Return the platform object itself
+    }
   }
-  return null;
+  return null; // No platform found
 }
