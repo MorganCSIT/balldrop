@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>Platform Jumper</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="game-container">
+      <div id="score-container">Score: <span id="score">0</span></div>
+      <div id="level-container">Level: <span id="level">1</span></div>
+      <div id="jetpack-container">
+        Jetpack Fuel: <span id="jetpack-fuel">0</span>
+      </div>
+      <div id="extra-jumps-container">
+        Extra Jumps: <span id="extra-jumps">0</span>
+      </div>
+      <div id="sos-container">SOS: <span id="sos-meter">0</span></div>
+      <div id="game-over" class="hidden">
+        <h2>Game Over</h2>
+        <p>Your score: <span id="final-score">0</span></p>
+        <button id="restart-button" onclick="window.restartGame();">
+          Play Again
+        </button>
+      </div>
+
+      <!-- Start Game Modal -->
+      <div id="start-modal" class="modal" style="display: flex">
+        <div class="modal-content">
+          <h2>Platform Jumper</h2>
+          <p>Navigate your ball through an endless descent of platforms!</p>
+          <p>
+            Use WASD or Arrow Keys to move, SPACE to jump/release. On mobile,
+            use the virtual joystick and buttons.
+          </p>
+
+          <button id="start-button">Start Game</button>
+        </div>
+      </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script type="module" src="js/main.js"></script>
+  </body>
+</html>
