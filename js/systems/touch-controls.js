@@ -229,7 +229,7 @@ function createTouchControls() {
   grabButtonElement = document.createElement("div");
   grabButtonElement.id = "grab-button";
   grabButtonElement.className = "control-button grab-button";
-  grabButtonElement.innerHTML = "GRAB";
+  grabButtonElement.innerHTML = "SOS";
   touchControlsContainer.appendChild(grabButtonElement);
 }
 
