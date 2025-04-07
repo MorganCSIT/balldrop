@@ -98,13 +98,19 @@ export function updateBallPosition(
   if (wasOnPlatform && !onPlatformNow && !isJumping) {
     // Ball was on platform last frame but not this frame, and not jumping
     // This means the ball rolled or fell off the platform
-    if (ballVelocity.x !== 0) {
-      // If there's horizontal velocity, the ball rolled off
+    if (Math.abs(ballVelocity.x) > 0.01) {
+      // If there's significant horizontal velocity, the ball rolled off
       airEntryMethod = "rolled";
+      // Don't set jumping state to true here, to allow for first jump after rolling
+      console.log("Ball rolled off platform - airEntryMethod set to 'rolled'");
     } else {
       // Otherwise, the ball fell off
       airEntryMethod = "fell";
+      console.log("Ball fell off platform - airEntryMethod set to 'fell'");
     }
+
+    // Reset double jump state to ensure double jump is available after rolling/falling
+    hasDoubleJumped = false;
   }
 
   // Update wasOnPlatform for the next frame
@@ -173,10 +179,11 @@ export function updateBallPosition(
   // Add automatic forward movement (the ball is always rolling forward)
   ball.position.z -= speed * deltaTime * 60;
 
-  // Improved ball rotation based on movement and velocity
-  // This makes the ball roll more realistically
-  ball.rotation.x -= (speed + Math.abs(ballVelocity.z)) * deltaTime * 60;
-  ball.rotation.z -= ballVelocity.x * deltaTime * 60;
+  // Calculate rotation based on actual movement distance
+  // For a ball with radius 1, one full rotation (2*PI radians) should happen when it travels 2*PI units
+  const rotationFactor = 1 / (2 * Math.PI); // For a ball of radius 1
+  ball.rotation.x -= speed * rotationFactor * deltaTime * 360; // Forward rotation based on speed (increased for better feel)
+  ball.rotation.z -= ballVelocity.x * rotationFactor * deltaTime * 360; // Side rotation based on x velocity (increased for better feel)
 
   return {
     position: ball.position,
@@ -210,9 +217,12 @@ export function applyPlatformEffects(platformInfo, speed) {
         ballVelocity.y = GAME_SETTINGS.maxJumpForce * 1.5; // Standard bounce force
         ballVelocity.z -= 0.1; // Keep small forward impulse
         speed += 0.025; // Increase the base forward speed by 25% of the previous increment (0.1 * 0.25)
-        isJumping = true;
+        isJumping = false; // Bounce doesn't count as the first jump
         airEntryMethod = "bounced";
-        // console.log("Speed-up bounce! New Speed:", speed); // Optional debug log
+        hasDoubleJumped = false; // Ensure double jump is available
+        console.log(
+          "Trampoline bounce (forward) - isJumping: false, airEntryMethod: bounced"
+        ); // Added log
         break;
 
       case "backward":
@@ -224,9 +234,12 @@ export function applyPlatformEffects(platformInfo, speed) {
         if (speed < GAME_SETTINGS.minSpeed) {
           speed = GAME_SETTINGS.minSpeed; // Assuming GAME_SETTINGS.minSpeed exists, otherwise use a small positive value like 0.1
         }
-        isJumping = true;
+        isJumping = false; // Bounce doesn't count as the first jump
         airEntryMethod = "bounced";
-        // console.log("Slow-down bounce! New Speed:", speed); // Optional debug log
+        hasDoubleJumped = false; // Ensure double jump is available
+        console.log(
+          "Trampoline bounce (backward) - isJumping: false, airEntryMethod: bounced"
+        ); // Added log
         break;
 
       default:
@@ -252,11 +265,11 @@ export function applyPlatformEffects(platformInfo, speed) {
 export function jump(isDoubleJump = false, isExtraJump = false) {
   if (isExtraJump) {
     // Extra jump (beyond double jump)
-    ballVelocity.y = GAME_SETTINGS.jumpForce * 1.3; // Even stronger than double jump
+    ballVelocity.y = GAME_SETTINGS.jumpForce * 1.0; // Same force as regular jump
     extraJumps--; // Use one extra jump
   } else if (isDoubleJump) {
     // Regular double jump
-    ballVelocity.y = GAME_SETTINGS.jumpForce * 1.2; // Slightly stronger than regular jump
+    ballVelocity.y = GAME_SETTINGS.jumpForce * 1.0; // Same force as regular jump
     hasDoubleJumped = true;
   } else {
     // First jump
@@ -351,6 +364,14 @@ export function getJumpChargeTime() {
  */
 export function getAirEntryMethod() {
   return airEntryMethod;
+}
+
+/**
+ * Set the air entry method
+ * @param {string} method - The new air entry method ("jumped", "bounced", "rolled", "fell", etc.)
+ */
+export function setAirEntryMethod(method) {
+  airEntryMethod = method;
 }
 
 /**

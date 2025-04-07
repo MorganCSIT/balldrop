@@ -16,6 +16,9 @@ import {
   hasDoubleJumpedState,
   getAirEntryMethod,
   getExtraJumps,
+  setAirEntryMethod, // Import the new setter
+  setJumpingState, // Added import
+  setDoubleJumpedState, // Added import
 } from "../entities/ball.js";
 import { getClaw } from "../entities/claw.js";
 import { getPlatforms } from "../entities/platform.js";
@@ -278,14 +281,26 @@ export function endGrab() {
     // Apply the final position
     ball.position.set(newPosition.x, newPosition.y, newPosition.z);
 
-    // Reset velocity to ensure a clean start after grab
+    // Reset velocity to zero to simulate being dropped
     setBallVelocity({ x: 0, y: 0, z: 0 });
 
-    console.log("Grab ended - Ball position updated safely");
+    // Set jump states to allow a double jump after being dropped
+    setJumpingState(false); // Not actively jumping out of grab
+    setDoubleJumpedState(false); // Double jump is available
+    setAirEntryMethod("fell"); // Explicitly set state to allow first jump after drop
+
+    console.log(
+      "Grab ended - Ball position updated, dropped ball, double jump available, airEntryMethod set to 'fell'"
+    );
   } else {
     // Reset velocity even if ball/spaceship not found
     setBallVelocity({ x: 0, y: 0, z: 0 });
-    console.log("Grab ended (no ball/spaceship references)");
+
+    // Reset jumping states even if ball/spaceship not found
+    setJumpingState(false);
+    setDoubleJumpedState(false);
+
+    console.log("Grab ended (no ball/spaceship references), jump states reset");
   }
 
   // Always reset the grab state

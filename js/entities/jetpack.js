@@ -142,10 +142,25 @@ export function updateJetpack(
       // but double jumped state to false (so they can still do a double jump)
       setJumpingState(true);
       setDoubleJumpedState(false);
+
+      // Log for debugging
+      console.log(
+        "Jetpack fuel depleted - Jump states set to allow double jump"
+      );
     }
 
     // Return updated velocity
     return { ...ballVelocity };
+  } else if (isJetpackActive && jetpackFuel <= 0) {
+    // If trying to use jetpack but no fuel left, ensure double jump is available
+    // This handles edge cases where the state wasn't properly set when fuel depleted
+    setJumpingState(true);
+    setDoubleJumpedState(false);
+
+    // Log for debugging
+    console.log(
+      "Attempted to use depleted jetpack - Jump states reset to allow double jump"
+    );
   }
 
   return ballVelocity;

@@ -180,13 +180,29 @@ export function onKeyDown(
     case "Spacebar":
       // If the ball is in grab mode, release it with the current trajectory
       if (isGrabbingState()) {
-        console.log("Releasing ball from grab mode");
+        console.log(
+          "[Controls] Space pressed while grabbing. Attempting release..."
+        );
         if (pauseGame) {
+          console.log("[Controls] Calling pauseGame(false)...");
           pauseGame(false); // Unpause the game
+          console.log("[Controls] pauseGame(false) called.");
+        } else {
+          console.warn(
+            "[Controls] pauseGame function not provided, cannot unpause!"
+          );
         }
+        console.log("[Controls] Calling endGrab()...");
         endGrab(); // End the grab state
-        // The ball will continue with its current velocity
-        return;
+        console.log(
+          "[Controls] endGrab() called. isGrabbing should now be false."
+        );
+        // The ball will continue with its current velocity (set in endGrab)
+        console.log(
+          "[Controls] Returning from spacebar handler after grab release."
+        );
+        keys.space = false; // Explicitly reset key state here as a safeguard
+        return; // Exit the switch case for spacebar
       }
 
       // If the ball is still in the claw, release it
@@ -215,31 +231,80 @@ export function onKeyDown(
       // Handle jumps in the air
       else if (!keys.space && !isOnPlatform()) {
         const airEntryMethod = getAirEntryMethod();
+        console.log(
+          "Air entry method:",
+          airEntryMethod,
+          "Jumping state:",
+          isJumpingState(),
+          "Double jumped:",
+          hasDoubleJumpedState()
+        );
 
-        // If the player fell off a platform (didn't jump or bounce), allow one jump in the air
-        if (!isJumpingState() && airEntryMethod === "fell") {
-          keys.space = true;
-          const remainingJumps = jump(false); // First jump
-          updateExtraJumps(remainingJumps);
-        }
-        // If the player is already jumping (either from a regular jump or after falling)
-        // and hasn't double jumped yet
-        else if (!hasDoubleJumpedState()) {
-          // Allow double jump only if player jumped off, bounced off, or rolled off a platform
-          if (
-            airEntryMethod === "jumped" ||
-            airEntryMethod === "bounced" ||
-            airEntryMethod === "rolled"
-          ) {
+        // If the player rolled off a platform, always allow a first jump regardless of jumping state
+        if (airEntryMethod === "rolled" && !hasDoubleJumpedState()) {
+          // If not already in jumping state, do first jump
+          if (!isJumpingState()) {
+            keys.space = true;
+            const remainingJumps = jump(false); // First jump
+            updateExtraJumps(remainingJumps);
+            console.log("First jump after rolling off platform");
+          }
+          // If already in jumping state, do double jump
+          else {
             keys.space = true;
             const remainingJumps = jump(true); // Double jump
             updateExtraJumps(remainingJumps);
+            console.log("Double jump after rolling off platform");
           }
-          // If the player has done their first jump after falling, allow a double jump
-          else if (airEntryMethod === "fell" && isJumpingState()) {
+        }
+        // If the player was dropped from SOS grab (isJumping=false, hasDoubleJumped=false, airEntryMethod=fell)
+        // OR fell off a platform normally, allow the first jump.
+        else if (!isJumpingState() && airEntryMethod === "fell") {
+          console.log(
+            "[Controls] Condition met for first jump after falling/SOS drop."
+          ); // Added log
+          keys.space = true;
+          const remainingJumps = jump(false); // First jump
+          updateExtraJumps(remainingJumps);
+          console.log("First jump after falling or SOS drop"); // Modified log
+        }
+        // If the player is already jumping (from a regular jump, roll, or first jump after fall/SOS)
+        // OR if the player just bounced (isJumping is false, but they are in air)
+        // AND hasn't double jumped yet
+        else if (!hasDoubleJumpedState()) {
+          console.log(
+            `[Controls] Attempting jump/double jump check. AirEntry: ${airEntryMethod}, IsJumping: ${isJumpingState()}, HasDoubleJumped: ${hasDoubleJumpedState()}`
+          );
+
+          // If the player bounced, the first jump is a regular jump
+          if (airEntryMethod === "bounced" && !isJumpingState()) {
+            console.log(
+              "[Controls] Conditions met for first jump after bounce. Calling jump(false)..."
+            );
             keys.space = true;
-            const remainingJumps = jump(true); // Double jump after falling and doing first jump
+            const remainingJumps = jump(false); // First jump after bounce
             updateExtraJumps(remainingJumps);
+            console.log("First jump performed after bounce");
+          }
+          // Otherwise (jumped, rolled, fell, or already did first jump after bounce), perform double jump
+          else if (
+            airEntryMethod === "jumped" ||
+            airEntryMethod === "bounced" || // Now handles the second jump after bounce
+            airEntryMethod === "rolled" ||
+            airEntryMethod === "fell"
+          ) {
+            console.log(
+              "[Controls] Conditions met for double jump. Calling jump(true)..."
+            );
+            keys.space = true;
+            const remainingJumps = jump(true); // Double jump
+            updateExtraJumps(remainingJumps);
+            console.log(
+              "Double jump performed in air, entry method:",
+              airEntryMethod
+            );
+          } else {
+            console.log("[Controls] Conditions NOT met for double jump.");
           }
         }
         // If the player has already double jumped but has extra jumps available
@@ -247,6 +312,7 @@ export function onKeyDown(
           keys.space = true;
           const remainingJumps = jump(false, true); // Use an extra jump
           updateExtraJumps(remainingJumps);
+          console.log("Extra jump used, remaining:", remainingJumps);
         }
       }
       break;

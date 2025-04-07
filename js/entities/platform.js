@@ -271,7 +271,7 @@ export function createPlatform(isRedFlag = false, scene, level = 1) {
     material,
     platform,
     innerMesh = null;
-  const tiltAngle = 10; // Degrees
+  const tiltAngle = 2; // Degrees
 
   if (bounceEffect === "forward" || bounceEffect === "backward") {
     // --- Trampoline Platform (Green or Orange) ---
@@ -489,7 +489,7 @@ export function createStartingPlatforms(scene) {
   const trampolineDepth = 10;
   const innerTrampolineColor = 0x333333; // Dark grey
   const innerScaleFactor = 0.8; // 80% inner area
-  const tiltAngle = 10; // Degrees
+  const tiltAngle = 2; // Degrees
 
   // Base (Outer Frame - Green)
   const trampolineGeometry = new THREE.BoxGeometry(
@@ -604,7 +604,7 @@ export function generateNewLevel(level, speed, scene) {
   // Create a red flag platform at the center of the new level
   const redFlagX = 0; // Center X position
   const redFlagY = 0; // Starting Y position
-  const redFlagZ = -20; // Place it ahead of the starting position
+  const redFlagZ = -5; // Place it ahead of the starting position
 
   // Update last platform position for next level generation
   lastPlatformPosition = { x: redFlagX, y: redFlagY, z: redFlagZ };
