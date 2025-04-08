@@ -215,7 +215,8 @@ export function createPlatform(isRedFlag = false, scene, level = 1) {
       isSlowDownTrampoline = false;
       bounceEffect = "forward";
       platformColor = PLATFORM_COLORS.trampoline;
-    } else if (platformTypeRoll < 0.25) {
+    } else if (platformTypeRoll < 0.208) {
+      // Reduced from 0.25 to 0.208 (halving orange slow-down trampolines)
       isTrampoline = false;
       isSlowDownTrampoline = true;
       bounceEffect = "backward";
