@@ -93,7 +93,7 @@ import {
 } from "./systems/ui.js";
 
 // Game variables
-let scene, camera, renderer;
+let scene, camera, renderer, directionalLight;
 let score = 0;
 let level = 1;
 let speed = GAME_SETTINGS.initialSpeed;
@@ -147,11 +147,20 @@ function init() {
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
   scene.add(ambientLight);
 
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-  directionalLight.position.set(10, 20, 10);
+  directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+  directionalLight.position.set(10, 20, 10); // Initial position
   directionalLight.castShadow = true;
   directionalLight.shadow.mapSize.width = 2048;
   directionalLight.shadow.mapSize.height = 2048;
+
+  // Define shadow camera properties for better coverage
+  directionalLight.shadow.camera.left = -50;
+  directionalLight.shadow.camera.right = 50;
+  directionalLight.shadow.camera.top = 50;
+  directionalLight.shadow.camera.bottom = -50;
+  directionalLight.shadow.camera.near = 0.5;
+  directionalLight.shadow.camera.far = 500; // Adjust far plane as needed
+
   scene.add(directionalLight);
 
   // Create the ball (player)
@@ -486,6 +495,16 @@ function update() {
   camera.position.y = ball.position.y + GAME_SETTINGS.cameraOffset.y;
   camera.position.z = ball.position.z + GAME_SETTINGS.cameraOffset.z;
   camera.lookAt(ball.position);
+
+  // Update directional light position and target to follow the ball
+  if (directionalLight && ball) {
+    directionalLight.position.set(
+      ball.position.x + 10,
+      ball.position.y + 20,
+      ball.position.z + 10
+    );
+    directionalLight.target = ball;
+  }
 
   // Handle platform collisions
   const collisionResult = handlePlatformCollisions(speed, () => {

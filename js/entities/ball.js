@@ -37,6 +37,7 @@ export function createBall() {
     color: 0xff0000,
   });
   const mainBall = new THREE.Mesh(ballGeometry, ballMaterial);
+  mainBall.castShadow = true;
   ball.add(mainBall);
 
   // Add visible features to show rolling
