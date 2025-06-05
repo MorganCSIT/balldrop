@@ -352,7 +352,10 @@ export function createPlatform(isRedFlag = false, scene, level = 1) {
       platform.add(innerMesh); // Add inner mesh as child
     }
     // Shadows for inner mesh too if needed (might be minor)
-    if (innerMesh) innerMesh.castShadow = true;
+    if (innerMesh) {
+      innerMesh.castShadow = true;
+      innerMesh.receiveShadow = true; // Also allow inner mesh to receive shadows if needed
+    }
   } else {
     // --- Regular or Moving Platform (Solid Color) ---
     if (isRoundPlatform) {
@@ -525,7 +528,10 @@ export function createStartingPlatforms(scene) {
   trampoline.position.set(0, 0, 0);
   trampoline.receiveShadow = true;
   trampoline.castShadow = true;
-  if (innerMesh) innerMesh.castShadow = true;
+  if (innerMesh) {
+    innerMesh.castShadow = true;
+    innerMesh.receiveShadow = true; // Also allow inner mesh to receive shadows if needed
+  }
 
   // Store the platform's dimensions and properties for collision detection (using base dimensions)
   trampoline.userData = {
