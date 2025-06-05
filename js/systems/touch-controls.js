@@ -320,8 +320,13 @@ function handleJumpTouchStart(
   else if (!touchState.jumpActive && !isOnPlatform()) {
     const airEntryMethod = getAirEntryMethod();
 
-    // If the player fell off a platform (didn't jump or bounce), allow one jump in the air
-    if (!isJumpingState() && airEntryMethod === "fell") {
+    // If the player entered the air by falling, rolling, or bouncing, allow one jump in the air
+    if (
+      !isJumpingState() &&
+      (airEntryMethod === "fell" ||
+        airEntryMethod === "rolled" ||
+        airEntryMethod === "bounced")
+    ) {
       touchState.jumpActive = true;
       virtualKeys.space = true;
       const remainingJumps = jump(false); // First jump
