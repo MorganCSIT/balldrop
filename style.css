@@ -1,9 +1,11 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+
 body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  font-family: Arial, sans-serif;
-  background-color: #87ceeb;
+  font-family: 'Inter', sans-serif;
+  background-color: #1e90ff;
   touch-action: none; /* Prevent browser handling of touch events */
 }
 
@@ -18,10 +20,15 @@ body {
   top: 20px;
   left: 20px;
   font-size: 24px;
+  font-weight: 700;
   color: white;
-  background-color: rgba(0, 0, 0, 0.5);
-  padding: 10px 15px;
-  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 12px 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
   z-index: 10;
 }
 
@@ -31,13 +38,16 @@ body {
   left: 50%;
   transform: translateX(-50%);
   font-size: 28px;
-  font-weight: bold;
+  font-weight: 700;
   color: white;
-  background-color: rgba(0, 0, 0, 0.7);
-  padding: 10px 20px;
-  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 12px 24px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
   z-index: 10;
-  box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+  box-shadow: 0 4px 15px rgba(0, 255, 255, 0.3);
   transition: all 0.3s ease;
 }
 
@@ -63,38 +73,47 @@ body {
   position: absolute;
   top: 20px;
   right: 20px;
-  font-size: 24px;
+  font-size: 20px;
+  font-weight: 700;
   color: white;
-  /* Yellow background for Jetpack */
-  background-color: rgba(255, 255, 0, 0.6);
+  background: rgba(255, 215, 0, 0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   padding: 10px 15px;
-  border-radius: 5px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 215, 0, 0.5);
   z-index: 10;
 }
 
 #extra-jumps-container {
   position: absolute;
-  top: 70px;
+  top: 75px;
   right: 20px;
-  font-size: 24px;
+  font-size: 20px;
+  font-weight: 700;
   color: white;
-  /* Teal background for Extra Jumps */
-  background-color: rgba(0, 255, 136, 0.6);
+  background: rgba(0, 255, 136, 0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   padding: 10px 15px;
-  border-radius: 5px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 255, 136, 0.5);
   z-index: 10;
 }
 
 #sos-container {
   position: absolute;
-  top: 120px;
+  top: 130px;
   right: 20px;
-  font-size: 24px;
+  font-size: 20px;
+  font-weight: 700;
   color: white;
-  /* Hot Pink background for SOS */
-  background-color: rgba(255, 20, 147, 0.6);
+  background: rgba(255, 20, 147, 0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   padding: 10px 15px;
-  border-radius: 5px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 20, 147, 0.5);
   z-index: 10;
 }
 

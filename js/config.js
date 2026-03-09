@@ -36,16 +36,16 @@ export const PLATFORM_TYPES = [
   "far-far-right",
 ];
 
-// Background colors
+// Background colors (More vibrant, modern palette)
 export const BACKGROUND_COLORS = [
-  0x87ceeb, // Default sky blue
-  0xffb6c1, // Light pink
-  0x98fb98, // Pale green
-  0xffd700, // Gold
-  0xe6e6fa, // Lavender
-  0x20b2aa, // Light sea green
-  0xffa07a, // Light salmon
-  0x87cefa, // Light sky blue
+  0x1e90ff, // Dodger Blue
+  0xff69b4, // Hot Pink
+  0x3cb371, // Medium Sea Green
+  0xff8c00, // Dark Orange
+  0x9370db, // Medium Purple
+  0x20b2aa, // Light Sea Green
+  0xff7f50, // Coral
+  0x00ced1, // Dark Turquoise
 ];
 
 // Platform colors
@@ -87,8 +87,10 @@ export const PLATFORM_MOVEMENT = {
 // Material properties
 export const MATERIALS = {
   platform: {
-    roughness: 0.7,
+    roughness: 0.2, // Smoother platforms
     metalness: 0.1,
+    clearcoat: 0.8, // Add a slightly glossy finish
+    clearcoatRoughness: 0.2
   },
   flagPole: {
     color: 0x8b4513, // Brown color for pole

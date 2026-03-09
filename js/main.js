@@ -111,6 +111,7 @@ let levelTransitionEffect = null;
 let isTransitioning = false;
 let isGeneratingNextLevel = false; // Flag to track if we're generating platforms for the next level
 let isPaused = false; // Flag to track if the game is paused for grab aiming
+let cameraLookTarget = new THREE.Vector3(0, 0, 0); // Smooth camera target
 
 /**
  * Initialize the game
@@ -143,25 +144,31 @@ function init() {
   renderer.shadowMap.enabled = true;
   document.getElementById("game-container").appendChild(renderer.domElement);
 
-  // Add lights
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+  // Add lights with better intensity and color
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); // Slightly brighter ambient
   scene.add(ambientLight);
 
-  directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-  directionalLight.position.set(10, 20, 10); // Initial position
+  directionalLight = new THREE.DirectionalLight(0xffffff, 1.0); // Brighter directional
+  directionalLight.position.set(15, 30, 15); // Higher and more angled position
   directionalLight.castShadow = true;
-  directionalLight.shadow.mapSize.width = 2048;
-  directionalLight.shadow.mapSize.height = 2048;
 
-  // Define shadow camera properties for better coverage
-  directionalLight.shadow.camera.left = -50;
-  directionalLight.shadow.camera.right = 50;
-  directionalLight.shadow.camera.top = 50;
-  directionalLight.shadow.camera.bottom = -50;
+  // Improve shadow quality
+  directionalLight.shadow.mapSize.width = 4096; // High res shadow map
+  directionalLight.shadow.mapSize.height = 4096;
   directionalLight.shadow.camera.near = 0.5;
-  directionalLight.shadow.camera.far = 500; // Adjust far plane as needed
+  directionalLight.shadow.camera.far = 150; // Tighter range for sharper shadows
+  directionalLight.shadow.camera.left = -30;
+  directionalLight.shadow.camera.right = 30;
+  directionalLight.shadow.camera.top = 30;
+  directionalLight.shadow.camera.bottom = -30;
+  directionalLight.shadow.bias = -0.0005; // Reduce shadow acne
 
   scene.add(directionalLight);
+
+  // Add a soft fill light from below for better depth
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.4);
+  hemiLight.position.set(0, 20, 0);
+  scene.add(hemiLight);
 
   // Create the ball (player)
   const ball = createBall();
@@ -434,12 +441,19 @@ function update() {
       updateTouchControlsState();
     }
 
-    // Update camera to look at the ball
+    // Update camera to look at the ball using lerp for smoothness
     if (ball) {
-      camera.position.x = ball.position.x + GAME_SETTINGS.cameraOffset.x;
-      camera.position.y = ball.position.y + GAME_SETTINGS.cameraOffset.y;
-      camera.position.z = ball.position.z + GAME_SETTINGS.cameraOffset.z;
-      camera.lookAt(ball.position);
+      const targetCamPos = new THREE.Vector3(
+        ball.position.x + GAME_SETTINGS.cameraOffset.x,
+        ball.position.y + GAME_SETTINGS.cameraOffset.y,
+        ball.position.z + GAME_SETTINGS.cameraOffset.z
+      );
+      camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetCamPos.x, 0.05); // Slower horizontal follow
+      camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetCamPos.y, 0.05); // Slower vertical follow
+      camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetCamPos.z, 0.1);
+
+      cameraLookTarget.lerp(ball.position, 0.05); // Smooth look target tracking
+      camera.lookAt(cameraLookTarget);
     }
 
     return;
@@ -490,11 +504,19 @@ function update() {
     }
   }
 
-  // Update camera position to follow the ball
-  camera.position.x = ball.position.x + GAME_SETTINGS.cameraOffset.x;
-  camera.position.y = ball.position.y + GAME_SETTINGS.cameraOffset.y;
-  camera.position.z = ball.position.z + GAME_SETTINGS.cameraOffset.z;
-  camera.lookAt(ball.position);
+  // Update camera position to follow the ball using independent Lerps
+  const targetCamPos = new THREE.Vector3(
+    ball.position.x + GAME_SETTINGS.cameraOffset.x,
+    ball.position.y + GAME_SETTINGS.cameraOffset.y,
+    ball.position.z + GAME_SETTINGS.cameraOffset.z
+  );
+  camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetCamPos.x, 0.05); // Slower horizontal follow
+  camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetCamPos.y, 0.05); // Slower vertical follow to prevent rapid bouncing
+  camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetCamPos.z, 0.1);
+
+  // Smooth the look target as well so the camera doesn't tilt violently
+  cameraLookTarget.lerp(ball.position, 0.05); // Slower look tracking
+  camera.lookAt(cameraLookTarget);
 
   // Update directional light position and target to follow the ball
   if (directionalLight && ball) {
@@ -857,8 +879,7 @@ function addPlatformsForNextLevel(scene, level) {
     // This gives us more control over the generation
     const platform = createPlatform(false, scene, level);
     console.log(
-      `Generated platform ${i + 1}/${platformCount} at Z: ${
-        platform.position.z
+      `Generated platform ${i + 1}/${platformCount} at Z: ${platform.position.z
       }`
     );
   }
@@ -870,8 +891,7 @@ function addPlatformsForNextLevel(scene, level) {
   }
 
   console.log(
-    `Generated ${
-      platformCount + extraPlatforms
+    `Generated ${platformCount + extraPlatforms
     } new platforms for level ${level}`
   );
 }

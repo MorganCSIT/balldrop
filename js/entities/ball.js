@@ -20,6 +20,9 @@ let jumpChargeTime = 0;
 let airEntryMethod = "";
 // Track if the player was on a platform in the previous frame
 let wasOnPlatform = false;
+// Coyote time tracking
+let timeSinceLeftPlatform = 0;
+const COYOTE_TIME = 0.15; // 150ms of leniency
 // Extra jumps counter
 let extraJumps = 0;
 
@@ -102,16 +105,20 @@ export function updateBallPosition(
     if (Math.abs(ballVelocity.x) > 0.01) {
       // If there's significant horizontal velocity, the ball rolled off
       airEntryMethod = "rolled";
-      // Don't set jumping state to true here, to allow for first jump after rolling
-      console.log("Ball rolled off platform - airEntryMethod set to 'rolled'");
     } else {
       // Otherwise, the ball fell off
       airEntryMethod = "fell";
-      console.log("Ball fell off platform - airEntryMethod set to 'fell'");
     }
 
     // Reset double jump state to ensure double jump is available after rolling/falling
     hasDoubleJumped = false;
+  }
+
+  // Track coyote time
+  if (onPlatformNow) {
+    timeSinceLeftPlatform = 0;
+  } else if (!isJumping) {
+    timeSinceLeftPlatform += deltaTime;
   }
 
   // Update wasOnPlatform for the next frame
@@ -264,25 +271,37 @@ export function applyPlatformEffects(platformInfo, speed) {
  * @returns {number} Current number of extra jumps remaining
  */
 export function jump(isDoubleJump = false, isExtraJump = false) {
-  if (isExtraJump) {
-    // Extra jump (beyond double jump)
-    ballVelocity.y = GAME_SETTINGS.jumpForce * 1.0; // Same force as regular jump
-    extraJumps--; // Use one extra jump
-  } else if (isDoubleJump) {
-    // Regular double jump
-    ballVelocity.y = GAME_SETTINGS.jumpForce * 1.0; // Same force as regular jump
-    hasDoubleJumped = true;
-  } else {
-    // First jump
-    isJumping = true;
-    hasDoubleJumped = false; // Reset double jump flag
-    ballVelocity.y = GAME_SETTINGS.jumpForce;
-    jumpChargeTime = 0; // Reset charge time
+  // Check if we are still on a platform or within coyote time (a true "first" jump)
+  const isFirstJumpEligible = timeSinceLeftPlatform <= COYOTE_TIME && !isJumping;
 
-    // If we're on a platform, set air entry method to jumped
-    if (wasOnPlatform) {
-      airEntryMethod = "jumped";
-    }
+  // We allow jumping if:
+  // 1. It's an eligible first jump
+  // 2. OR we have an extra jump
+  // 3. OR we haven't double jumped yet
+  const canJump = isFirstJumpEligible || isExtraJump || !hasDoubleJumped;
+
+  if (!canJump) return extraJumps;
+
+  // Reset velocity to prevent compounding gravity with jump
+  ballVelocity.y = 0;
+
+  if (isExtraJump && hasDoubleJumped) {
+    // Only consume extra jump IF we've already used our double jump
+    ballVelocity.y = GAME_SETTINGS.jumpForce * 1.0;
+    extraJumps--;
+  } else if (!isFirstJumpEligible) {
+    // If not a first jump, it must be the double jump
+    ballVelocity.y = GAME_SETTINGS.jumpForce * 1.0;
+    hasDoubleJumped = true; // Consume the double jump
+  } else {
+    // This is a true first jump (either on platform or coyote time)
+    isJumping = true;
+    hasDoubleJumped = false; // We still have our double jump available
+    ballVelocity.y = GAME_SETTINGS.jumpForce;
+    jumpChargeTime = 0;
+
+    // If we're on a platform or within coyote time
+    airEntryMethod = "jumped";
   }
   return extraJumps;
 }
@@ -401,6 +420,7 @@ export function resetBallState() {
   jumpChargeTime = 0;
   airEntryMethod = "";
   wasOnPlatform = false;
+  timeSinceLeftPlatform = 0;
   extraJumps = 0;
 
   if (ball) {

@@ -664,7 +664,7 @@ export function checkPlatformCollision(ballPosition, ballVelocity) {
       if (
         distanceSquared <= platformRadius * 0.9 * (platformRadius * 0.9) &&
         Math.abs(ballPosition.y - ballRadius - (platform.position.y + 0.5)) <=
-          0.5 &&
+        0.5 &&
         ballVelocity.y <= 0 // Only count as collision when falling or stationary
       ) {
         collisionDetected = true;
@@ -882,8 +882,8 @@ function addMovementIndicator(platform, scene) {
         const x =
           platform.userData.originalPosition.x +
           i *
-            platform.userData.movementRange.x *
-            platform.userData.diagonalDirection;
+          platform.userData.movementRange.x *
+          platform.userData.diagonalDirection;
         const y =
           platform.userData.originalPosition.y +
           i * platform.userData.movementRange.y;
@@ -981,37 +981,37 @@ export function updateMovingPlatforms(deltaTime) {
           platform.position.x =
             platform.userData.originalPosition.x +
             Math.sin(platform.userData.movementProgress) *
-              platform.userData.movementRange;
+            platform.userData.movementRange;
           break;
 
         case "vertical":
           platform.position.y =
             platform.userData.originalPosition.y +
             Math.sin(platform.userData.movementProgress) *
-              platform.userData.movementRange;
+            platform.userData.movementRange;
           break;
 
         case "diagonal":
           platform.position.x =
             platform.userData.originalPosition.x +
             Math.sin(platform.userData.movementProgress) *
-              platform.userData.movementRange.x *
-              platform.userData.diagonalDirection;
+            platform.userData.movementRange.x *
+            platform.userData.diagonalDirection;
           platform.position.y =
             platform.userData.originalPosition.y +
             Math.sin(platform.userData.movementProgress) *
-              platform.userData.movementRange.y;
+            platform.userData.movementRange.y;
           break;
 
         case "orbital":
           platform.position.x =
             platform.userData.originalPosition.x +
             Math.cos(platform.userData.movementProgress) *
-              platform.userData.orbitalRadius;
+            platform.userData.orbitalRadius;
           platform.position.z =
             platform.userData.originalPosition.z +
             Math.sin(platform.userData.movementProgress) *
-              platform.userData.orbitalRadius;
+            platform.userData.orbitalRadius;
           break;
 
         case "figure8":
@@ -1019,12 +1019,12 @@ export function updateMovingPlatforms(deltaTime) {
           platform.position.x =
             platform.userData.originalPosition.x +
             Math.sin(platform.userData.movementProgress) *
-              platform.userData.figure8Scale.x;
+            platform.userData.figure8Scale.x;
           platform.position.y =
             platform.userData.originalPosition.y +
             (Math.sin(platform.userData.movementProgress * 2) *
               platform.userData.figure8Scale.y) /
-              2;
+            2;
           break;
 
         case "pendulum":
@@ -1033,12 +1033,12 @@ export function updateMovingPlatforms(deltaTime) {
             platform.position.x =
               platform.userData.originalPosition.x +
               Math.sin(platform.userData.movementProgress) *
-                platform.userData.pendulumLength;
+              platform.userData.pendulumLength;
           } else {
             platform.position.y =
               platform.userData.originalPosition.y +
               Math.sin(platform.userData.movementProgress) *
-                platform.userData.pendulumLength;
+              platform.userData.pendulumLength;
           }
           break;
       }
@@ -1071,7 +1071,7 @@ export function getCurrentPlatform(ballPosition, ballVelocity) {
       if (
         distanceSquared <= platformRadius * 0.9 * (platformRadius * 0.9) &&
         Math.abs(ballPosition.y - ballRadius - (platform.position.y + 0.5)) <=
-          0.5 &&
+        0.5 &&
         ballVelocity.y <= 0 // Only count as collision when falling or stationary
       ) {
         collisionDetected = true;
