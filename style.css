@@ -32,6 +32,29 @@ body {
   z-index: 10;
 }
 
+#combo-container {
+  position: absolute;
+  top: 75px;
+  left: 20px;
+  font-size: 20px;
+  font-weight: 700;
+  color: white;
+  background: rgba(6, 214, 160, 0.28);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 10px 15px;
+  border-radius: 8px;
+  border: 1px solid rgba(6, 214, 160, 0.5);
+  z-index: 10;
+}
+
+.best-combo {
+  display: inline-block;
+  margin-left: 10px;
+  font-size: 14px;
+  opacity: 0.85;
+}
+
 #level-container {
   position: absolute;
   top: 20px;
@@ -49,6 +72,23 @@ body {
   z-index: 10;
   box-shadow: 0 4px 15px rgba(0, 255, 255, 0.3);
   transition: all 0.3s ease;
+}
+
+#mode-container {
+  position: absolute;
+  top: 82px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 16px;
+  font-weight: 700;
+  color: white;
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  z-index: 10;
 }
 
 /* Level change animation */
@@ -114,6 +154,22 @@ body {
   padding: 10px 15px;
   border-radius: 8px;
   border: 1px solid rgba(255, 20, 147, 0.5);
+  z-index: 10;
+}
+
+#rescue-container {
+  position: absolute;
+  top: 185px;
+  right: 20px;
+  font-size: 20px;
+  font-weight: 700;
+  color: white;
+  background: rgba(17, 138, 178, 0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 10px 15px;
+  border-radius: 8px;
+  border: 1px solid rgba(17, 138, 178, 0.55);
   z-index: 10;
 }
 
@@ -224,6 +280,49 @@ body {
   font-size: 18px;
 }
 
+.mode-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 20px 0;
+}
+
+.mode-option,
+.control-style-option {
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  padding: 12px 10px;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mode-option.active,
+.control-style-option.active {
+  background: #118ab2;
+  border-color: #4cc9f0;
+}
+
+.mobile-control-selector {
+  margin: 0 0 20px;
+  text-align: left;
+}
+
+.selector-label {
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.control-style-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
 .controls-section,
 .tips-section {
   text-align: left;
@@ -305,6 +404,62 @@ body {
   font-size: 26px;
 }
 
+.direction-joystick {
+  position: absolute;
+  left: 40px;
+  bottom: 120px;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  pointer-events: all;
+  user-select: none;
+  background: rgba(30, 144, 255, 0.24);
+  border: 3px solid rgba(255, 255, 255, 0.72);
+  box-shadow: 0 0 18px rgba(0, 0, 0, 0.38);
+  opacity: 0.9;
+  touch-action: none;
+}
+
+.direction-joystick::before {
+  content: "HOLD";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.direction-joystick.grab-mode::before {
+  content: "AIM";
+}
+
+.joystick-thumb {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 64px;
+  height: 64px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  border: 2px solid rgba(17, 138, 178, 0.75);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.32);
+  transition: transform 0.08s ease;
+}
+
+.touch-controls.joystick-style .left-button,
+.touch-controls.joystick-style .right-button {
+  display: none;
+}
+
+.touch-controls.button-style .direction-joystick {
+  display: none;
+}
+
 /* Active state for buttons */
 .control-button:active {
   transform: scale(0.9);
@@ -331,10 +486,13 @@ body {
 /* Media queries for different screen sizes */
 @media (max-width: 768px) {
   #score-container,
+  #combo-container,
   #level-container,
+  #mode-container,
   #jetpack-container,
   #extra-jumps-container,
-  #sos-container {
+  #sos-container,
+  #rescue-container {
     font-size: 18px;
     padding: 8px 12px;
   }
@@ -366,15 +524,25 @@ body {
     bottom: 120px;
     right: 30px;
   }
+
+  .direction-joystick {
+    left: 30px;
+    bottom: 90px;
+    width: 140px;
+    height: 140px;
+  }
 }
 
 /* Small screens (phones) */
 @media (max-width: 480px) {
   #score-container,
+  #combo-container,
   #level-container,
+  #mode-container,
   #jetpack-container,
   #extra-jumps-container,
-  #sos-container {
+  #sos-container,
+  #rescue-container {
     font-size: 16px;
     padding: 5px 10px;
   }
@@ -405,6 +573,18 @@ body {
   .grab-button {
     bottom: 100px;
     right: 20px;
+  }
+
+  .direction-joystick {
+    left: 20px;
+    bottom: 80px;
+    width: 122px;
+    height: 122px;
+  }
+
+  .joystick-thumb {
+    width: 54px;
+    height: 54px;
   }
 
   .modal-content {
@@ -449,6 +629,13 @@ body {
     bottom: 30px;
     right: 30px;
   }
+
+  .direction-joystick {
+    left: 30px;
+    bottom: 15px;
+    width: 130px;
+    height: 130px;
+  }
 }
 
 /* Add a new query for very large phones like iPhone Plus models */
@@ -476,5 +663,12 @@ body {
   .grab-button {
     bottom: 110px;
     right: 25px;
+  }
+
+  .direction-joystick {
+    left: 25px;
+    bottom: 85px;
+    width: 132px;
+    height: 132px;
   }
 }

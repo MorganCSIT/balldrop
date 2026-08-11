@@ -12,7 +12,12 @@
   <body>
     <div id="game-container">
       <div id="score-container">Score: <span id="score">0</span></div>
+      <div id="combo-container">
+        Combo: <span id="combo">x0</span>
+        <span class="best-combo">Best <span id="best-combo">x0</span></span>
+      </div>
       <div id="level-container">Level: <span id="level">1</span></div>
+      <div id="mode-container">Mode: <span id="mode">Classic</span></div>
       <div id="jetpack-container">
         Jetpack Fuel: <span id="jetpack-fuel">0</span>
       </div>
@@ -20,6 +25,9 @@
         Extra Jumps: <span id="extra-jumps">0</span>
       </div>
       <div id="sos-container">SOS: <span id="sos-meter">0</span></div>
+      <div id="rescue-container" class="hidden">
+        Rescues: <span id="rescue">0</span>
+      </div>
       <div id="game-over" class="hidden">
         <h2>Game Over</h2>
         <p>Your score: <span id="final-score">0</span></p>
@@ -37,6 +45,35 @@
             Use WASD or Arrow Keys to move, SPACE to jump/release. On mobile,
             use the virtual joystick and buttons.
           </p>
+
+          <div class="mode-selector" aria-label="Game mode">
+            <button id="mode-classic" class="mode-option active" type="button">
+              Classic
+            </button>
+            <button id="mode-rescue" class="mode-option" type="button">
+              Rescue Run
+            </button>
+          </div>
+
+          <div class="mobile-control-selector" aria-label="Mobile direction controls">
+            <div class="selector-label">Mobile Direction</div>
+            <div class="control-style-options">
+              <button
+                id="control-buttons"
+                class="control-style-option active"
+                type="button"
+              >
+                Buttons
+              </button>
+              <button
+                id="control-joystick"
+                class="control-style-option"
+                type="button"
+              >
+                Hold Joystick
+              </button>
+            </div>
+          </div>
 
           <button id="start-button">Start Game</button>
         </div>

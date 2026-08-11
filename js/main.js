@@ -10,6 +10,7 @@ import {
   resetBallState,
   updateBallPosition,
   getBall,
+  setBallGravityDirection,
   getExtraJumps,
   addExtraJumps,
 } from "./entities/ball.js";
@@ -40,11 +41,11 @@ import {
   cleanupPlatforms,
   addPlatformsAsNeeded,
   resetPlatforms,
-  removeAllPlatformsExceptRedFlag,
   setLastPlatformState,
   getLastPlatformState,
   createPlatform,
   updateMovingPlatforms,
+  setPlatformGravityDirection,
 } from "./entities/platform.js";
 import { updateFlag, resetFlag } from "./entities/flag.js";
 import {
@@ -54,11 +55,24 @@ import {
   resetPowerUps,
 } from "./entities/powerup.js";
 import {
+  spawnRescueTargets,
+  updateRescueTargets,
+  checkRescueTargetCollisions,
+  cleanupRescueTargets,
+  resetRescueTargets,
+  getRescuedCount,
+} from "./entities/rescue-target.js";
+import {
   isOnPlatform,
   handlePlatformCollisions,
   handlePowerUpCollisions,
   checkFallOutOfBounds,
 } from "./systems/collision.js";
+import {
+  getGravityConfig,
+  getPositionAlong,
+} from "./systems/gravity.js";
+import { updateDifficulty } from "./systems/levels.js";
 import {
   initControls,
   getKeys,
@@ -72,17 +86,18 @@ import {
   toggleTouchControlsVisibility,
   virtualKeys,
   updateTouchControlsState,
+  setTouchControlStyle,
+  getTouchControlStyle,
 } from "./systems/touch-controls.js";
-import {
-  initLevel,
-  checkLevelCompletion,
-  updateDifficulty,
-} from "./systems/levels.js";
 import {
   updateScore,
   updateLevel,
   updateJetpackFuel,
   updateExtraJumps,
+  updateCombo,
+  updateMode,
+  updateRescueCount,
+  setRescueHUDVisible,
   showGameOver,
   hideGameOver,
   showStartModal,
@@ -95,14 +110,20 @@ import {
 // Game variables
 let scene, camera, renderer, directionalLight;
 let score = 0;
+let distanceScore = 0;
+let bonusScore = 0;
+let combo = 0;
+let bestCombo = 0;
+let lastLandingPlatformId = null;
+let lastLandingWasTrampoline = false;
 let level = 1;
 let speed = GAME_SETTINGS.initialSpeed;
 let gameOver = false;
 let gameStarted = false;
 let ballReleased = false;
+let gameMode = "classic";
 let jetpackFuel = 0;
 let isJetpackActive = false;
-let redFlagPlatformReached = false;
 let currentBackgroundColor = 0;
 let clock = new THREE.Clock();
 let deltaTime;
@@ -112,6 +133,7 @@ let isTransitioning = false;
 let isGeneratingNextLevel = false; // Flag to track if we're generating platforms for the next level
 let isPaused = false; // Flag to track if the game is paused for grab aiming
 let cameraLookTarget = new THREE.Vector3(0, 0, 0); // Smooth camera target
+let activeGravityDirection = "down";
 
 /**
  * Initialize the game
@@ -262,6 +284,34 @@ function init() {
     ); // Use passive: false to allow stopPropagation
   }
 
+  const classicModeButton = document.getElementById("mode-classic");
+  const rescueModeButton = document.getElementById("mode-rescue");
+  const buttonControlButton = document.getElementById("control-buttons");
+  const joystickControlButton = document.getElementById("control-joystick");
+
+  if (classicModeButton) {
+    classicModeButton.addEventListener("click", () => setGameMode("classic"));
+  }
+
+  if (rescueModeButton) {
+    rescueModeButton.addEventListener("click", () => setGameMode("rescue"));
+  }
+
+  if (buttonControlButton) {
+    buttonControlButton.addEventListener("click", () =>
+      setMobileControlStyle("buttons")
+    );
+  }
+
+  if (joystickControlButton) {
+    joystickControlButton.addEventListener("click", () =>
+      setMobileControlStyle("joystick")
+    );
+  }
+
+  setGameMode(gameMode);
+  setMobileControlStyle(getTouchControlStyle());
+
   // Show the start modal
   showStartModal();
 
@@ -302,15 +352,98 @@ function setGameStarted(started) {
   gameStarted = started;
 }
 
+function setGameMode(mode) {
+  gameMode = mode;
+  updateMode(gameMode);
+  setRescueHUDVisible(gameMode === "rescue");
+
+  const classicButton = document.getElementById("mode-classic");
+  const rescueButton = document.getElementById("mode-rescue");
+
+  if (classicButton && rescueButton) {
+    classicButton.classList.toggle("active", gameMode === "classic");
+    rescueButton.classList.toggle("active", gameMode === "rescue");
+  }
+}
+
+function setMobileControlStyle(style) {
+  setTouchControlStyle(style);
+
+  const buttonsOption = document.getElementById("control-buttons");
+  const joystickOption = document.getElementById("control-joystick");
+  const selectedStyle = getTouchControlStyle();
+
+  if (buttonsOption && joystickOption) {
+    buttonsOption.classList.toggle("active", selectedStyle === "buttons");
+    joystickOption.classList.toggle("active", selectedStyle === "joystick");
+  }
+}
+
+function refreshScore() {
+  score = distanceScore + bonusScore;
+  updateScore(score);
+}
+
+function resetCombo() {
+  combo = 0;
+  lastLandingWasTrampoline = false;
+  updateCombo(combo, bestCombo);
+}
+
+function setActiveGravityDirection(direction) {
+  activeGravityDirection = direction;
+  setBallGravityDirection(direction);
+  setPlatformGravityDirection(direction);
+}
+
+function addBonusPoints(basePoints) {
+  const multiplier = 1 + combo * GAME_SETTINGS.score.comboMultiplierStep;
+  bonusScore += Math.round(basePoints * multiplier);
+  refreshScore();
+}
+
+function handleLandingScore(collisionResult) {
+  if (!collisionResult.justLanded) return;
+  if (collisionResult.platformId === lastLandingPlatformId) return;
+
+  lastLandingPlatformId = collisionResult.platformId;
+  combo++;
+  bestCombo = Math.max(bestCombo, combo);
+
+  let landingPoints = GAME_SETTINGS.score.landingBase;
+
+  if (collisionResult.platformType === "precision") {
+    landingPoints += GAME_SETTINGS.score.precisionLanding;
+  }
+
+  if (collisionResult.isMovingPlatform) {
+    landingPoints += GAME_SETTINGS.score.movingLanding;
+  }
+
+  if (collisionResult.isTrampoline && lastLandingWasTrampoline) {
+    landingPoints += GAME_SETTINGS.score.trampolineChain;
+  }
+
+  lastLandingWasTrampoline = collisionResult.isTrampoline;
+  addBonusPoints(landingPoints);
+  updateCombo(combo, bestCombo);
+}
+
 /**
  * Pause or unpause the game for grab aiming
  * @param {boolean} paused - Whether the game should be paused
  */
 function pauseGame(paused) {
+  const wasPaused = isPaused;
   isPaused = paused;
 
   // If pausing, stop the clock to prevent time from advancing
   if (paused) {
+    if (!wasPaused && gameStarted && ballReleased) {
+      bonusScore = Math.max(0, bonusScore - GAME_SETTINGS.score.clawPenalty);
+      resetCombo();
+      refreshScore();
+    }
     clock.stop();
     console.log("Game paused for grab aiming");
   } else {
@@ -359,6 +492,12 @@ function endGame() {
 function restartGame() {
   // Reset game variables
   score = 0;
+  distanceScore = 0;
+  bonusScore = 0;
+  combo = 0;
+  bestCombo = 0;
+  lastLandingPlatformId = null;
+  lastLandingWasTrampoline = false;
   level = 1;
   speed = GAME_SETTINGS.initialSpeed;
   gameOver = false;
@@ -366,10 +505,10 @@ function restartGame() {
   ballReleased = false;
   jetpackFuel = 0;
   isJetpackActive = false;
-  redFlagPlatformReached = false;
   distanceTraveled = 0;
   isTransitioning = false;
   isGeneratingNextLevel = false;
+  setActiveGravityDirection("down");
 
   // Remove any existing transition effect
   if (levelTransitionEffect) {
@@ -388,6 +527,7 @@ function restartGame() {
   resetBallState();
   resetPlatforms(scene);
   resetPowerUps(scene);
+  resetRescueTargets(scene);
   resetFlag();
   resetJetpack();
   resetClaw(scene);
@@ -396,6 +536,10 @@ function restartGame() {
 
   // Create initial platforms with a green trampoline at the start
   createStartingPlatforms(scene);
+  updateMode(gameMode);
+  setRescueHUDVisible(gameMode === "rescue");
+  updateCombo(combo, bestCombo);
+  updateRescueCount(0);
 }
 
 /**
@@ -443,16 +587,18 @@ function update() {
 
     // Update camera to look at the ball using lerp for smoothness
     if (ball) {
+      const gravityConfig = getGravityConfig(activeGravityDirection);
       const targetCamPos = new THREE.Vector3(
-        ball.position.x + GAME_SETTINGS.cameraOffset.x,
-        ball.position.y + GAME_SETTINGS.cameraOffset.y,
-        ball.position.z + GAME_SETTINGS.cameraOffset.z
+        ball.position.x + gravityConfig.cameraOffset.x,
+        ball.position.y + gravityConfig.cameraOffset.y,
+        ball.position.z + gravityConfig.cameraOffset.z
       );
       camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetCamPos.x, 0.05); // Slower horizontal follow
       camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetCamPos.y, 0.05); // Slower vertical follow
       camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetCamPos.z, 0.1);
 
       cameraLookTarget.lerp(ball.position, 0.05); // Smooth look target tracking
+      camera.up.lerp(gravityConfig.cameraUp, 0.08).normalize();
       camera.lookAt(cameraLookTarget);
     }
 
@@ -481,7 +627,8 @@ function update() {
       speed,
       isJetpackActive,
       jetpackFuel,
-      isOnPlatform
+      isOnPlatform,
+      activeGravityDirection
     );
 
     // Update jetpack if it exists
@@ -492,7 +639,8 @@ function update() {
       (newFuel) => {
         jetpackFuel = newFuel;
         updateJetpackFuel(jetpackFuel);
-      }
+      },
+      activeGravityDirection
     );
 
     // Update flag animation
@@ -505,10 +653,11 @@ function update() {
   }
 
   // Update camera position to follow the ball using independent Lerps
+  const gravityConfig = getGravityConfig(activeGravityDirection);
   const targetCamPos = new THREE.Vector3(
-    ball.position.x + GAME_SETTINGS.cameraOffset.x,
-    ball.position.y + GAME_SETTINGS.cameraOffset.y,
-    ball.position.z + GAME_SETTINGS.cameraOffset.z
+    ball.position.x + gravityConfig.cameraOffset.x,
+    ball.position.y + gravityConfig.cameraOffset.y,
+    ball.position.z + gravityConfig.cameraOffset.z
   );
   camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetCamPos.x, 0.05); // Slower horizontal follow
   camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetCamPos.y, 0.05); // Slower vertical follow to prevent rapid bouncing
@@ -516,31 +665,33 @@ function update() {
 
   // Smooth the look target as well so the camera doesn't tilt violently
   cameraLookTarget.lerp(ball.position, 0.05); // Slower look tracking
+  camera.up.lerp(gravityConfig.cameraUp, 0.08).normalize();
   camera.lookAt(cameraLookTarget);
 
   // Update directional light position and target to follow the ball
   if (directionalLight && ball) {
     directionalLight.position.set(
-      ball.position.x + 10,
-      ball.position.y + 20,
+      ball.position.x + gravityConfig.normal.x * 20 + 10,
+      ball.position.y + gravityConfig.normal.y * 20,
       ball.position.z + 10
     );
     directionalLight.target = ball;
   }
 
   // Handle platform collisions
-  const collisionResult = handlePlatformCollisions(speed, () => {
-    // When the red flag platform is reached, remove all other platforms
-    removeAllPlatformsExceptRedFlag(scene);
-    redFlagPlatformReached = true;
-  });
+  const collisionResult = handlePlatformCollisions(
+    speed,
+    () => {},
+    activeGravityDirection
+  );
   speed = collisionResult.speed;
+  handleLandingScore(collisionResult);
 
   // Update moving platforms
   updateMovingPlatforms(deltaTime);
 
   // Check if the ball has fallen too far from the nearest platform
-  if (checkFallOutOfBounds(getPlatforms())) {
+  if (checkFallOutOfBounds(getPlatforms(), undefined, activeGravityDirection)) {
     endGame();
     return;
   }
@@ -549,17 +700,32 @@ function update() {
   const removeDistance = 30;
   cleanupPlatforms(ball.position, removeDistance, scene);
   cleanupPowerUps(ball.position, removeDistance, scene);
+  cleanupRescueTargets(ball.position, removeDistance, scene);
 
   // Add new platforms as needed
-  addPlatformsAsNeeded(scene, level);
+  addPlatformsAsNeeded(scene, level, activeGravityDirection);
 
-  // Randomly spawn power-ups (increased chance from 0.5% to 3%)
-  if (Math.random() < 0.03) {
+  if (gameMode === "rescue") {
+    spawnRescueTargets(getPlatforms(), scene, ball.position, level);
+    updateRescueTargets(deltaTime, ball.position);
+
+    const rescues = checkRescueTargetCollisions(ball, scene);
+    if (rescues > 0) {
+      combo += rescues;
+      bestCombo = Math.max(bestCombo, combo);
+      addBonusPoints(GAME_SETTINGS.score.rescueTarget * rescues);
+      updateCombo(combo, bestCombo);
+      updateRescueCount(getRescuedCount());
+    }
+  }
+
+  // Randomly spawn power-ups
+  if (Math.random() < GAME_SETTINGS.powerUpSpawnChance) {
     spawnPowerUps(getPlatforms(), scene, level);
   }
 
-  // Occasionally spawn a burst of powerups (0.2% chance per frame)
-  if (Math.random() < 0.002) {
+  // Occasionally spawn a burst of powerups
+  if (Math.random() < GAME_SETTINGS.powerUpBurstChance) {
     // Spawn 2-3 powerups at once
     const burstCount = Math.random() < 0.5 ? 2 : 3;
     for (let i = 0; i < burstCount; i++) {
@@ -567,14 +733,14 @@ function update() {
     }
   }
 
-  // Occasionally spawn a claw powerup specifically (0.5% chance per frame)
+  // Occasionally spawn a claw powerup specifically
   // This ensures claw powerups appear regularly
-  if (Math.random() < 0.005) {
+  if (Math.random() < GAME_SETTINGS.clawPowerUpChance) {
     spawnPowerUps(getPlatforms(), scene, level, "SOS");
   }
 
   // Update power-ups (rotation and floating animation)
-  updatePowerUps(deltaTime);
+  updatePowerUps(deltaTime, ball.position);
 
   // Check for collisions with power-ups
   const powerUpResult = handlePowerUpCollisions(
@@ -599,32 +765,14 @@ function update() {
     updateBackgroundColor(scene, currentBackgroundColor, BACKGROUND_COLORS);
   }
 
-  // Check if the player has reached the end of the level
-  if (redFlagPlatformReached) {
-    const levelState = checkLevelCompletion(
-      redFlagPlatformReached,
-      level,
-      speed,
-      scene,
-      (colorIndex) => {
-        currentBackgroundColor = colorIndex;
-        updateBackgroundColor(scene, currentBackgroundColor, BACKGROUND_COLORS);
-      }
-    );
-
-    level = levelState.level;
-    speed = levelState.speed;
-    redFlagPlatformReached = levelState.redFlagPlatformReached;
-  }
-
   // Update score based on distance traveled
   const newScore = Math.floor(Math.abs(ball.position.z));
-  if (newScore > score) {
-    score = newScore;
-    updateScore(score);
+  if (newScore > distanceScore) {
+    distanceScore = newScore;
+    refreshScore();
 
     // Track distance traveled for level progression
-    distanceTraveled = newScore;
+    distanceTraveled = distanceScore;
 
     // Calculate the next level threshold
     const nextLevelThreshold = GAME_SETTINGS.distanceForNextLevel * level;
@@ -715,8 +863,7 @@ function update() {
       }, 1500);
     }
 
-    // Increase speed as score increases
-    // speed = updateDifficulty(score, speed);
+    speed = updateDifficulty(distanceScore, speed);
   }
 }
 
@@ -861,8 +1008,14 @@ function addPlatformsForNextLevel(scene, level) {
   // This ensures new platforms will be generated from this position
   setLastPlatformState(
     {
-      x: furthestPlatform.position.x,
-      y: furthestPlatform.position.y,
+      x: getPositionAlong(
+        furthestPlatform.position,
+        getGravityConfig(activeGravityDirection).side
+      ),
+      y: getPositionAlong(
+        furthestPlatform.position,
+        getGravityConfig(activeGravityDirection).normal
+      ),
       z: furthestPlatform.position.z - 20, // Start a bit further ahead
     },
     furthestPlatform.userData.type || "center"
@@ -877,7 +1030,9 @@ function addPlatformsForNextLevel(scene, level) {
   for (let i = 0; i < platformCount; i++) {
     // Create platforms directly instead of using addPlatformsAsNeeded
     // This gives us more control over the generation
-    const platform = createPlatform(false, scene, level);
+    const platform = createPlatform(false, scene, level, {
+      gravityDirection: activeGravityDirection,
+    });
     console.log(
       `Generated platform ${i + 1}/${platformCount} at Z: ${platform.position.z
       }`
@@ -887,7 +1042,9 @@ function addPlatformsForNextLevel(scene, level) {
   // Generate extra platforms to ensure there's always enough ahead
   const extraPlatforms = 10;
   for (let i = 0; i < extraPlatforms; i++) {
-    createPlatform(false, scene, level);
+    createPlatform(false, scene, level, {
+      gravityDirection: activeGravityDirection,
+    });
   }
 
   console.log(

@@ -5,9 +5,7 @@
 
 import THREE from "../utils/three-wrapper.js";
 import { MATERIALS } from "../config.js";
-import { random } from "../utils/helpers.js";
-import { ELEMENT_IDS } from "../config.js";
-import { setText, showElement } from "../utils/helpers.js";
+import { addScaledAxis, getGravityConfig } from "../systems/gravity.js";
 
 // Power-up collection
 let powerUps = [];
@@ -89,7 +87,7 @@ export function createPowerUp(type, x, y, z, scene) {
  */
 export function spawnPowerUps(platforms, scene, level = 1, forcedType = null) {
   // Calculate max powerups based on level (more powerups at higher levels)
-  const maxPowerUps = Math.min(15, 8 + Math.floor(level / 2));
+  const maxPowerUps = Math.min(8, 4 + Math.floor(level / 3));
 
   // Only spawn if we have fewer than the maximum number of power-ups
   if (powerUps.length < maxPowerUps && platforms.length > 0) {
@@ -98,10 +96,15 @@ export function spawnPowerUps(platforms, scene, level = 1, forcedType = null) {
       platforms[Math.floor(Math.random() * platforms.length)];
 
     if (randomPlatform) {
-      // Position above the platform - reduced height
-      const x = randomPlatform.position.x + (Math.random() * 4 - 2); // Random offset
-      const y = randomPlatform.position.y + 1.5 + Math.random() * 1.5; // Lowered spawn height
-      const z = randomPlatform.position.z;
+      const gravityConfig = getGravityConfig(
+        randomPlatform.userData.gravityDirection || "down"
+      );
+      const position = randomPlatform.position.clone();
+      addScaledAxis(position, gravityConfig.side, Math.random() * 4 - 2);
+      addScaledAxis(position, gravityConfig.normal, 1.5 + Math.random() * 1.5);
+      const x = position.x;
+      const y = position.y;
+      const z = position.z;
 
       let type;
 
@@ -168,7 +171,7 @@ export function checkPowerUpCollisions(
       // Apply power-up effect
       if (powerUp.userData.type === "jetpack") {
         // Add jetpack fuel
-        updateJetpackFuel(100);
+        updateJetpackFuel(45);
 
         // Make sure the jetpack is visible
         if (jetpack) {
@@ -331,45 +334,3 @@ export function resetPowerUps(scene) {
   powerUps = [];
 }
 
-/**
- * Show the game over screen with statistics
- * @param {object} stats - Game statistics object
- */
-export function showGameOver(stats) {
-  // Use helper functions to update text content
-  setText(ELEMENT_IDS.finalScore, stats.score !== undefined ? stats.score : 0);
-  setText(
-    ELEMENT_IDS.statMaxLevel,
-    stats.maxLevelReached !== undefined ? stats.maxLevelReached : 1
-  );
-  // Format distance to integer
-  setText(
-    ELEMENT_IDS.statMaxDistance,
-    stats.maxDistanceTraveled !== undefined
-      ? Math.floor(stats.maxDistanceTraveled)
-      : 0
-  );
-  setText(
-    ELEMENT_IDS.statJumps,
-    stats.jumpsMade !== undefined ? stats.jumpsMade : 0
-  );
-  setText(
-    ELEMENT_IDS.statJetpacks,
-    stats.jetpacksCollected !== undefined ? stats.jetpacksCollected : 0
-  );
-  setText(
-    ELEMENT_IDS.statExtraJumps,
-    stats.extraJumpsCollected !== undefined ? stats.extraJumpsCollected : 0
-  );
-  setText(
-    ELEMENT_IDS.statSosCollected,
-    stats.sosCollected !== undefined ? stats.sosCollected : 0
-  );
-  setText(
-    ELEMENT_IDS.statSosUsed,
-    stats.sosUses !== undefined ? stats.sosUses : 0
-  );
-
-  // Make the game over screen visible
-  showElement(ELEMENT_IDS.gameOver);
-}

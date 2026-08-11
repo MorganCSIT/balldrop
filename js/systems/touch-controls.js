@@ -27,7 +27,9 @@ import { updateExtraJumps } from "./ui.js";
 let touchState = {
   joystickActive: false,
   joystickStartX: 0,
+  joystickStartY: 0,
   joystickCurrentX: 0,
+  joystickCurrentY: 0,
   joystickId: null,
   jumpActive: false,
   doubleTapTime: 0,
@@ -36,6 +38,8 @@ let touchState = {
   leftArrowActive: false,
   rightArrowActive: false,
 };
+
+let controlStyle = "buttons";
 
 // Virtual keys state (to integrate with existing keyboard controls)
 export let virtualKeys = {
@@ -49,8 +53,11 @@ export let virtualKeys = {
 // DOM elements for touch controls
 let leftArrowElement;
 let rightArrowElement;
+let joystickElement;
+let joystickThumbElement;
 let jumpButtonElement;
 let grabButtonElement;
+let touchControlsContainer;
 
 /**
  * Initialize touch controls
@@ -58,6 +65,7 @@ let grabButtonElement;
 export function initTouchControls() {
   // Create touch control elements
   createTouchControls();
+  applyControlStyle();
 
   // Initialize button states based on current game state
   setTimeout(() => {
@@ -102,6 +110,21 @@ export function initTouchControls() {
         passive: false,
       }
     );
+  }
+
+  if (joystickElement) {
+    joystickElement.addEventListener("touchstart", handleJoystickTouchStart, {
+      passive: false,
+    });
+    joystickElement.addEventListener("touchmove", handleJoystickTouchMove, {
+      passive: false,
+    });
+    joystickElement.addEventListener("touchend", handleJoystickTouchEnd, {
+      passive: false,
+    });
+    joystickElement.addEventListener("touchcancel", handleJoystickTouchEnd, {
+      passive: false,
+    });
   }
 
   if (rightArrowElement) {
@@ -198,8 +221,20 @@ export function initTouchControls() {
  * Create touch control elements
  */
 function createTouchControls() {
+  const existingControls = document.getElementById("touch-controls");
+  if (existingControls) {
+    touchControlsContainer = existingControls;
+    leftArrowElement = document.getElementById("left-arrow");
+    rightArrowElement = document.getElementById("right-arrow");
+    joystickElement = document.getElementById("direction-joystick");
+    joystickThumbElement = document.getElementById("joystick-thumb");
+    jumpButtonElement = document.getElementById("jump-button");
+    grabButtonElement = document.getElementById("grab-button");
+    return;
+  }
+
   // Create container for touch controls
-  const touchControlsContainer = document.createElement("div");
+  touchControlsContainer = document.createElement("div");
   touchControlsContainer.id = "touch-controls";
   touchControlsContainer.className = "touch-controls";
   document.getElementById("game-container").appendChild(touchControlsContainer);
@@ -218,6 +253,17 @@ function createTouchControls() {
   rightArrowElement.innerHTML = "→";
   touchControlsContainer.appendChild(rightArrowElement);
 
+  joystickElement = document.createElement("div");
+  joystickElement.id = "direction-joystick";
+  joystickElement.className = "direction-joystick";
+  joystickElement.setAttribute("aria-label", "Direction joystick");
+  touchControlsContainer.appendChild(joystickElement);
+
+  joystickThumbElement = document.createElement("div");
+  joystickThumbElement.id = "joystick-thumb";
+  joystickThumbElement.className = "joystick-thumb";
+  joystickElement.appendChild(joystickThumbElement);
+
   // Create jump button
   jumpButtonElement = document.createElement("div");
   jumpButtonElement.id = "jump-button";
@@ -231,6 +277,116 @@ function createTouchControls() {
   grabButtonElement.className = "control-button grab-button";
   grabButtonElement.innerHTML = "SOS";
   touchControlsContainer.appendChild(grabButtonElement);
+}
+
+export function setTouchControlStyle(style) {
+  controlStyle = style === "joystick" ? "joystick" : "buttons";
+  resetDirectionalTouch();
+  applyControlStyle();
+}
+
+export function getTouchControlStyle() {
+  return controlStyle;
+}
+
+function applyControlStyle() {
+  if (!touchControlsContainer) return;
+  touchControlsContainer.classList.toggle("joystick-style", controlStyle === "joystick");
+  touchControlsContainer.classList.toggle("button-style", controlStyle === "buttons");
+}
+
+function handleJoystickTouchStart(event) {
+  if (controlStyle !== "joystick") return;
+  event.preventDefault();
+
+  const touch = event.changedTouches[0];
+  touchState.joystickActive = true;
+  touchState.joystickId = touch.identifier;
+
+  const rect = joystickElement.getBoundingClientRect();
+  touchState.joystickStartX = rect.left + rect.width / 2;
+  touchState.joystickStartY = rect.top + rect.height / 2;
+
+  updateJoystickFromTouch(touch);
+}
+
+function handleJoystickTouchMove(event) {
+  if (!touchState.joystickActive || controlStyle !== "joystick") return;
+  event.preventDefault();
+
+  const touch = getJoystickTouch(event.changedTouches);
+  if (touch) {
+    updateJoystickFromTouch(touch);
+  }
+}
+
+function handleJoystickTouchEnd(event) {
+  if (!touchState.joystickActive) return;
+
+  const touch = getJoystickTouch(event.changedTouches);
+  if (!touch) return;
+
+  event.preventDefault();
+  resetDirectionalTouch();
+}
+
+function getJoystickTouch(touches) {
+  return Array.from(touches).find(
+    (touch) => touch.identifier === touchState.joystickId
+  );
+}
+
+function updateJoystickFromTouch(touch) {
+  const maxDistance = joystickElement.offsetWidth * 0.32;
+  const deadZone = joystickElement.offsetWidth * 0.12;
+  const deltaX = touch.clientX - touchState.joystickStartX;
+  const deltaY = touch.clientY - touchState.joystickStartY;
+  const distance = Math.min(Math.hypot(deltaX, deltaY), maxDistance);
+  const angle = Math.atan2(deltaY, deltaX);
+  const clampedX = Math.cos(angle) * distance;
+  const clampedY = Math.sin(angle) * distance;
+
+  touchState.joystickCurrentX = clampedX;
+  touchState.joystickCurrentY = clampedY;
+
+  if (joystickThumbElement) {
+    joystickThumbElement.style.transform = `translate(calc(-50% + ${clampedX}px), calc(-50% + ${clampedY}px))`;
+  }
+
+  const verticalMode =
+    isGrabbingState() ||
+    (window.gameState && !window.gameState.ballReleased);
+
+  if (verticalMode) {
+    virtualKeys.up = clampedY < -deadZone;
+    virtualKeys.down = clampedY > deadZone;
+    virtualKeys.left = false;
+    virtualKeys.right = false;
+  } else {
+    virtualKeys.left = clampedX < -deadZone;
+    virtualKeys.right = clampedX > deadZone;
+    virtualKeys.up = false;
+    virtualKeys.down = false;
+  }
+}
+
+function resetDirectionalTouch() {
+  touchState.joystickActive = false;
+  touchState.joystickStartX = 0;
+  touchState.joystickStartY = 0;
+  touchState.joystickCurrentX = 0;
+  touchState.joystickCurrentY = 0;
+  touchState.joystickId = null;
+  touchState.leftArrowActive = false;
+  touchState.rightArrowActive = false;
+  virtualKeys.left = false;
+  virtualKeys.right = false;
+  virtualKeys.up = false;
+  virtualKeys.down = false;
+
+  if (joystickThumbElement) {
+    joystickThumbElement.style.transform = "translate(-50%, -50%)";
+  }
 }
 
 /**
@@ -449,6 +605,9 @@ function updateDirectionalButtons() {
     // In grab mode, show up/down arrows
     leftArrowElement.innerHTML = "↓";
     rightArrowElement.innerHTML = "↑";
+    if (joystickElement) {
+      joystickElement.classList.add("grab-mode");
+    }
 
     // Also update the style to indicate different function
     leftArrowElement.style.backgroundColor = "rgba(138, 43, 226, 0.8)"; // BlueViolet
@@ -464,6 +623,9 @@ function updateDirectionalButtons() {
     // Normal mode, show left/right arrows
     leftArrowElement.innerHTML = "←";
     rightArrowElement.innerHTML = "→";
+    if (joystickElement) {
+      joystickElement.classList.remove("grab-mode");
+    }
 
     // Restore original style
     leftArrowElement.style.backgroundColor = "rgba(30, 144, 255, 0.8)"; // DodgerBlue
@@ -484,7 +646,9 @@ export function resetTouchState() {
   touchState = {
     joystickActive: false,
     joystickStartX: 0,
+    joystickStartY: 0,
     joystickCurrentX: 0,
+    joystickCurrentY: 0,
     joystickId: null,
     jumpActive: false,
     doubleTapTime: 0,
@@ -503,6 +667,7 @@ export function resetTouchState() {
   };
 
   // Reset directional buttons display
+  resetDirectionalTouch();
   updateDirectionalButtons();
 }
 

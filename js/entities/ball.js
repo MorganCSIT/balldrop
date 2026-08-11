@@ -7,6 +7,11 @@ import THREE from "../utils/three-wrapper.js";
 import { GAME_SETTINGS } from "../config.js";
 import { clamp } from "../utils/helpers.js";
 import { getCurrentPlatform } from "./platform.js";
+import {
+  addScaledAxis,
+  getGravityConfig,
+  getPositionAlong,
+} from "../systems/gravity.js";
 
 // Ball reference
 let ball = null;
@@ -25,6 +30,11 @@ let timeSinceLeftPlatform = 0;
 const COYOTE_TIME = 0.15; // 150ms of leniency
 // Extra jumps counter
 let extraJumps = 0;
+let gravityDirection = "down";
+
+export function setBallGravityDirection(direction) {
+  gravityDirection = direction;
+}
 
 /**
  * Create the player (red ball with visible features to show rolling)
@@ -91,8 +101,11 @@ export function updateBallPosition(
   speed,
   isJetpackActive,
   jetpackFuel,
-  isOnPlatform
+  isOnPlatform,
+  activeGravityDirection = gravityDirection
 ) {
+  gravityDirection = activeGravityDirection;
+  const gravityConfig = getGravityConfig(gravityDirection);
   const acceleration = 0.01;
   const maxVelocity = 0.3;
   const friction = 0.98;
@@ -151,14 +164,22 @@ export function updateBallPosition(
   }
 
   // Apply acceleration based on key presses
-  if (keys.left) ballVelocity.x -= acceleration;
-  if (keys.right) ballVelocity.x += acceleration;
+  const sideVelocity = getPositionAlong(ballVelocity, gravityConfig.side);
+  let nextSideVelocity = sideVelocity;
+  if (keys.left) nextSideVelocity -= acceleration;
+  if (keys.right) nextSideVelocity += acceleration;
 
   // Apply friction to horizontal movement
-  ballVelocity.x *= friction;
+  nextSideVelocity *= friction;
 
   // Limit maximum horizontal velocity
-  ballVelocity.x = clamp(ballVelocity.x, -maxVelocity, maxVelocity);
+  nextSideVelocity = clamp(nextSideVelocity, -maxVelocity, maxVelocity);
+  ballVelocity.x =
+    gravityConfig.side.x * nextSideVelocity +
+    gravityConfig.gravity.x * getPositionAlong(ballVelocity, gravityConfig.gravity);
+  ballVelocity.y =
+    gravityConfig.side.y * nextSideVelocity +
+    gravityConfig.gravity.y * getPositionAlong(ballVelocity, gravityConfig.gravity);
 
   // Update jump charge time if spacebar is being held
   if (keys.space && !isJumping && onPlatformNow) {
@@ -171,13 +192,20 @@ export function updateBallPosition(
   // Don't apply gravity if jetpack is active and has fuel
   if (!isJetpackActive || jetpackFuel <= 0) {
     // Apply stronger initial gravity to make the ball drop faster when released
-    ballVelocity.y -= GAME_SETTINGS.gravity * deltaTime * 60;
+    addScaledAxis(ballVelocity, gravityConfig.gravity, GAME_SETTINGS.gravity * deltaTime * 60);
   }
 
   // Terminal velocity for more realistic falling
-  const terminalVelocity = -0.5;
-  if (ballVelocity.y < terminalVelocity) {
-    ballVelocity.y = terminalVelocity;
+  const terminalVelocity = 0.5;
+  const gravityVelocity = getPositionAlong(ballVelocity, gravityConfig.gravity);
+  if (gravityVelocity > terminalVelocity) {
+    const clampedSideVelocity = getPositionAlong(ballVelocity, gravityConfig.side);
+    ballVelocity.x =
+      gravityConfig.side.x * clampedSideVelocity +
+      gravityConfig.gravity.x * terminalVelocity;
+    ballVelocity.y =
+      gravityConfig.side.y * clampedSideVelocity +
+      gravityConfig.gravity.y * terminalVelocity;
   }
 
   // Update ball position
@@ -191,7 +219,7 @@ export function updateBallPosition(
   // For a ball with radius 1, one full rotation (2*PI radians) should happen when it travels 2*PI units
   const rotationFactor = 1 / (2 * Math.PI); // For a ball of radius 1
   ball.rotation.x -= speed * rotationFactor * deltaTime * 360; // Forward rotation based on speed (increased for better feel)
-  ball.rotation.z -= ballVelocity.x * rotationFactor * deltaTime * 360; // Side rotation based on x velocity (increased for better feel)
+  ball.rotation.z -= nextSideVelocity * rotationFactor * deltaTime * 360; // Side rotation based on surface velocity
 
   return {
     position: ball.position,
@@ -210,10 +238,14 @@ export function updateBallPosition(
  * @returns {number} The potentially updated game speed
  */
 export function applyPlatformEffects(platformInfo, speed) {
+  const gravityConfig = getGravityConfig(gravityDirection);
+  const gravityVelocity = getPositionAlong(ballVelocity, gravityConfig.gravity);
   // Check if the ball just landed on a platform (velocity is downward)
-  if (platformInfo.onPlatform && ballVelocity.y < 0) {
+  if (platformInfo.onPlatform && gravityVelocity > 0) {
     // Reset vertical velocity and flags upon landing
-    ballVelocity.y = 0;
+    const sideVelocity = getPositionAlong(ballVelocity, gravityConfig.side);
+    ballVelocity.x = gravityConfig.side.x * sideVelocity;
+    ballVelocity.y = gravityConfig.side.y * sideVelocity;
     isJumping = false;
     hasDoubleJumped = false; // Reset double jump flag
     airEntryMethod = ""; // Reset air entry method
@@ -222,7 +254,7 @@ export function applyPlatformEffects(platformInfo, speed) {
     switch (platformInfo.bounceEffect) {
       case "forward":
         // Speed-up (Green) Platform: Bounce up, slightly forward impulse, and slightly increase base speed
-        ballVelocity.y = GAME_SETTINGS.maxJumpForce * 1.5; // Standard bounce force
+        addScaledAxis(ballVelocity, gravityConfig.normal, GAME_SETTINGS.maxJumpForce * 1.5);
         ballVelocity.z -= 0.1; // Keep small forward impulse
         speed += 0.025; // Increase the base forward speed by 25% of the previous increment (0.1 * 0.25)
         isJumping = false; // Bounce doesn't count as the first jump
@@ -235,7 +267,7 @@ export function applyPlatformEffects(platformInfo, speed) {
 
       case "backward":
         // Slow-down (Orange) Platform: Bounce up, backward impulse, and decrease base speed
-        ballVelocity.y = GAME_SETTINGS.maxJumpForce * 1.5; // Standard bounce force
+        addScaledAxis(ballVelocity, gravityConfig.normal, GAME_SETTINGS.maxJumpForce * 1.5);
         ballVelocity.z += 0.2; // Keep backward impulse
         speed -= 0.05; // Decrease the base forward speed (adjust value as needed)
         // Ensure speed doesn't become too low or negative
@@ -271,6 +303,7 @@ export function applyPlatformEffects(platformInfo, speed) {
  * @returns {number} Current number of extra jumps remaining
  */
 export function jump(isDoubleJump = false, isExtraJump = false) {
+  const gravityConfig = getGravityConfig(gravityDirection);
   // Check if we are still on a platform or within coyote time (a true "first" jump)
   const isFirstJumpEligible = timeSinceLeftPlatform <= COYOTE_TIME && !isJumping;
 
@@ -283,21 +316,23 @@ export function jump(isDoubleJump = false, isExtraJump = false) {
   if (!canJump) return extraJumps;
 
   // Reset velocity to prevent compounding gravity with jump
-  ballVelocity.y = 0;
+  const sideVelocity = getPositionAlong(ballVelocity, gravityConfig.side);
+  ballVelocity.x = gravityConfig.side.x * sideVelocity;
+  ballVelocity.y = gravityConfig.side.y * sideVelocity;
 
   if (isExtraJump && hasDoubleJumped) {
     // Only consume extra jump IF we've already used our double jump
-    ballVelocity.y = GAME_SETTINGS.jumpForce * 1.0;
+    addScaledAxis(ballVelocity, gravityConfig.normal, GAME_SETTINGS.jumpForce * 1.0);
     extraJumps--;
   } else if (!isFirstJumpEligible) {
     // If not a first jump, it must be the double jump
-    ballVelocity.y = GAME_SETTINGS.jumpForce * 1.0;
+    addScaledAxis(ballVelocity, gravityConfig.normal, GAME_SETTINGS.jumpForce * 1.0);
     hasDoubleJumped = true; // Consume the double jump
   } else {
     // This is a true first jump (either on platform or coyote time)
     isJumping = true;
     hasDoubleJumped = false; // We still have our double jump available
-    ballVelocity.y = GAME_SETTINGS.jumpForce;
+    addScaledAxis(ballVelocity, gravityConfig.normal, GAME_SETTINGS.jumpForce);
     jumpChargeTime = 0;
 
     // If we're on a platform or within coyote time
@@ -311,7 +346,7 @@ export function jump(isDoubleJump = false, isExtraJump = false) {
  * @param {number} additionalForce - Additional force to apply
  */
 export function applyJumpForce(additionalForce) {
-  ballVelocity.y += additionalForce;
+  addScaledAxis(ballVelocity, getGravityConfig(gravityDirection).normal, additionalForce);
 }
 
 /**

@@ -5,6 +5,7 @@
 
 import THREE from "../utils/three-wrapper.js";
 import { GAME_SETTINGS, MATERIALS } from "../config.js";
+import { addScaledAxis, getGravityConfig } from "../systems/gravity.js";
 
 // Jetpack references
 let jetpack = null;
@@ -102,7 +103,8 @@ export function updateJetpack(
   isJetpackActive,
   jetpackFuel,
   ballVelocity,
-  updateJetpackFuel
+  updateJetpackFuel,
+  gravityDirection = "down"
 ) {
   if (!jetpack) return ballVelocity;
 
@@ -128,7 +130,11 @@ export function updateJetpack(
   // Apply jetpack physics if active
   if (isJetpackActive && jetpackFuel > 0) {
     // Apply upward force
-    ballVelocity.y += GAME_SETTINGS.jetpackBoostForce;
+    addScaledAxis(
+      ballVelocity,
+      getGravityConfig(gravityDirection).normal,
+      GAME_SETTINGS.jetpackBoostForce
+    );
 
     // Check if this will be the last fuel point
     const willDepleteFuel = jetpackFuel === 1;

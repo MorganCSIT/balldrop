@@ -15,6 +15,28 @@ export function updateScore(score) {
   setText(ELEMENT_IDS.score, score);
 }
 
+export function updateCombo(combo, bestCombo) {
+  setText(ELEMENT_IDS.combo, `x${combo}`);
+  setText(ELEMENT_IDS.bestCombo, `x${bestCombo}`);
+}
+
+export function updateMode(mode) {
+  const label = mode === "rescue" ? "Rescue Run" : "Classic";
+  setText(ELEMENT_IDS.mode, label);
+}
+
+export function updateRescueCount(count) {
+  setText(ELEMENT_IDS.rescue, count);
+}
+
+export function setRescueHUDVisible(isVisible) {
+  if (isVisible) {
+    showElement(ELEMENT_IDS.rescueContainer);
+  } else {
+    hideElement(ELEMENT_IDS.rescueContainer);
+  }
+}
+
 /**
  * Update the level display
  * @param {number} level - Current level
@@ -133,6 +155,8 @@ export function resetUI() {
   updateJetpackFuel(0);
   updateExtraJumps(0);
   updateSOSCounter(0);
+  updateCombo(0, 0);
+  updateRescueCount(0);
   hideGameOver();
 }
 

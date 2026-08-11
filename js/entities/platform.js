@@ -12,12 +12,23 @@ import {
 } from "../config.js";
 import { random, randomInt } from "../utils/helpers.js";
 import { createFlag } from "./flag.js";
+import {
+  getGravityConfig,
+  getPositionAlong,
+  setPositionAlong,
+} from "../systems/gravity.js";
 
 // Platform collection and state
 let platforms = [];
 let lastPlatformPosition = { x: 0, y: 0, z: 0 };
 let lastPlatformType = "center";
 let redFlagPlatform = null;
+let nextPlatformId = 1;
+let activeGravityDirection = "down";
+
+export function setPlatformGravityDirection(direction) {
+  activeGravityDirection = direction;
+}
 
 /**
  * Create a platform
@@ -26,7 +37,10 @@ let redFlagPlatform = null;
  * @param {number} level - Current game level (for difficulty adjustment)
  * @returns {THREE.Mesh} The platform object
  */
-export function createPlatform(isRedFlag = false, scene, level = 1) {
+export function createPlatform(isRedFlag = false, scene, level = 1, options = {}) {
+  const gravityDirection = options.gravityDirection || "down";
+  const gravityConfig = getGravityConfig(gravityDirection);
+  const isSafePlatform = !!options.safe;
   // Determine the next platform position
   let nextX, nextY, nextZ;
 
@@ -50,10 +64,15 @@ export function createPlatform(isRedFlag = false, scene, level = 1) {
 
     // Store the platform's dimensions for collision detection
     startPlatform.userData = {
+      id: nextPlatformId++,
       width: 30,
       depth: 50,
       isTrampoline: false,
       type: "center",
+      challengeType: "regular",
+      isCollapsed: false,
+      gravityDirection: "down",
+      supportNormal: { x: 0, y: 1, z: 0 },
     };
 
     scene.add(startPlatform);
@@ -122,7 +141,7 @@ export function createPlatform(isRedFlag = false, scene, level = 1) {
       platformType = "far-right";
     }
 
-    // Set X position based on platform type
+    // Set lateral position based on platform type
     switch (platformType) {
       case "far-far-left":
         nextX = -35 - Math.random() * 5;
@@ -155,6 +174,7 @@ export function createPlatform(isRedFlag = false, scene, level = 1) {
 
     // Add some minor variation to make each path less predictable
     nextX += Math.random() * 2 - 1;
+    nextX += options.sideOffset || 0;
 
     // Store the platform type for the next platform
     lastPlatformType = platformType;
@@ -181,7 +201,10 @@ export function createPlatform(isRedFlag = false, scene, level = 1) {
   // Platform dimensions
   let platformWidth, platformDepth;
 
-  if (isLongPlatform) {
+  if (isSafePlatform) {
+    platformWidth = 12;
+    platformDepth = 18;
+  } else if (isLongPlatform) {
     // Long platforms
     platformWidth = 6 + Math.random() * 6; // Width between 6 and 12
     platformDepth = 15 + Math.random() * 15; // Depth between 15 and 30
@@ -198,8 +221,14 @@ export function createPlatform(isRedFlag = false, scene, level = 1) {
   let isRoundPlatform = false;
   let platformRadius = 0;
   let bounceEffect = null;
+  let challengeType = "regular";
 
-  if (isRedFlag) {
+  if (gravityDirection !== "down") {
+    isTrampoline = false;
+    isSlowDownTrampoline = false;
+    bounceEffect = null;
+    platformColor = PLATFORM_COLORS.regular;
+  } else if (isRedFlag) {
     // Red flag platform is always a trampoline and round
     isTrampoline = true;
     isSlowDownTrampoline = false;
@@ -229,6 +258,24 @@ export function createPlatform(isRedFlag = false, scene, level = 1) {
     }
   }
 
+  if (!isSafePlatform && !isRedFlag && !bounceEffect) {
+    const challengeRoll = Math.random();
+    const levelPressure = Math.min(0.18, level * 0.015);
+
+    if (challengeRoll < 0.08 + levelPressure) {
+      challengeType = "precision";
+      platformWidth = Math.max(2.4, platformWidth * 0.45);
+      platformDepth = Math.max(3.2, platformDepth * 0.55);
+      platformColor = PLATFORM_COLORS.precision;
+    } else if (challengeRoll < 0.15 + levelPressure) {
+      challengeType = "crumbling";
+      platformColor = PLATFORM_COLORS.crumbling;
+    } else if (challengeRoll < 0.21 + levelPressure) {
+      challengeType = "hazard";
+      platformColor = PLATFORM_COLORS.hazard;
+    }
+  }
+
   // Define colors and inner scale for trampoline look
   const innerTrampolineColor = 0x333333; // Dark grey
   const innerScaleFactor = 0.8; // 80% inner area
@@ -241,7 +288,7 @@ export function createPlatform(isRedFlag = false, scene, level = 1) {
 
   // Only regular platforms can be moving platforms (not trampolines, slow-down, or red flag platforms)
   // Check !bounceEffect which covers null/undefined (regular platforms)
-  if (!isRedFlag && !bounceEffect) {
+  if (!isSafePlatform && !isRedFlag && !bounceEffect) {
     // Check level conditions or random chance for moving
     if (
       level % 10 === 5 || // Level ends in 5: all move
@@ -251,7 +298,8 @@ export function createPlatform(isRedFlag = false, scene, level = 1) {
     ) {
       // Other levels: 10% move
       isMovingPlatform = true;
-      finalPlatformColor = PLATFORM_COLORS.moving; // Update the color *if* it becomes moving
+      finalPlatformColor =
+        challengeType === "regular" ? PLATFORM_COLORS.moving : platformColor;
 
       // Choose a random movement type
       if (level % 10 === 4) {
@@ -375,7 +423,12 @@ export function createPlatform(isRedFlag = false, scene, level = 1) {
       // Ensure no accidental tilt for regular platforms if they are round
       platform.rotation.x = Math.PI / 2;
     } else {
-      geometry = new THREE.BoxGeometry(platformWidth, 1, platformDepth);
+      const [sizeX, sizeY, sizeZ] = gravityConfig.platformSize(
+        platformWidth,
+        1,
+        platformDepth
+      );
+      geometry = new THREE.BoxGeometry(sizeX, sizeY, sizeZ);
       material = new THREE.MeshStandardMaterial({
         color: finalPlatformColor,
         roughness: 0.7,
@@ -386,23 +439,42 @@ export function createPlatform(isRedFlag = false, scene, level = 1) {
   }
 
   // Set position and shadows for the main platform group
-  platform.position.set(nextX, nextY, nextZ);
+  platform.position.set(0, 0, nextZ);
+  setPositionAlong(platform.position, gravityConfig.side, nextX);
+  setPositionAlong(platform.position, gravityConfig.normal, nextY);
   platform.receiveShadow = true;
   platform.castShadow = true; // Main platform should cast shadow
 
   // Store the platform's dimensions and properties for collision detection
   platform.userData = {
+    id: nextPlatformId++,
     width: isRoundPlatform ? platformRadius * 2 : platformWidth,
     depth: isRoundPlatform ? platformRadius * 2 : platformDepth,
+    thickness: 1,
     radius: isRoundPlatform ? platformRadius : 0,
     isRoundPlatform: isRoundPlatform,
     isTrampoline: isTrampoline,
     isSlowDownTrampoline: isSlowDownTrampoline,
     bounceEffect: bounceEffect,
     type: lastPlatformType,
+    challengeType: challengeType,
+    isCollapsed: false,
+    crumbleStarted: false,
+    hazardContactStart: 0,
     isRedFlagPlatform: isRedFlag,
     isMovingPlatform: isMovingPlatform,
     movementType: movementType,
+    gravityDirection: gravityDirection,
+    supportNormal: {
+      x: gravityConfig.normal.x,
+      y: gravityConfig.normal.y,
+      z: gravityConfig.normal.z,
+    },
+    sideAxis: {
+      x: gravityConfig.side.x,
+      y: gravityConfig.side.y,
+      z: gravityConfig.side.z,
+    },
     ...(isMovingPlatform && {
       originalPosition: {
         x: platform.position.x,
@@ -535,12 +607,18 @@ export function createStartingPlatforms(scene) {
 
   // Store the platform's dimensions and properties for collision detection (using base dimensions)
   trampoline.userData = {
+    id: nextPlatformId++,
     width: trampolineWidth,
     depth: trampolineDepth,
     isTrampoline: true,
     isSlowDownTrampoline: false,
     bounceEffect: "forward",
     type: "center",
+    challengeType: "regular",
+    isCollapsed: false,
+    gravityDirection: "down",
+    supportNormal: { x: 0, y: 1, z: 0 },
+    sideAxis: { x: 1, y: 0, z: 0 },
   };
 
   scene.add(trampoline);
@@ -649,48 +727,78 @@ export function checkPlatformCollision(ballPosition, ballVelocity) {
   const ballRadius = 1.0;
 
   for (const platform of platforms) {
+    if (platform.userData.isCollapsed || platform.visible === false) {
+      continue;
+    }
+    if ((platform.userData.gravityDirection || "down") !== activeGravityDirection) {
+      continue;
+    }
+
     let collisionDetected = false;
-    let platformY = 0;
+    let platformSurface = 0;
+    const platformGravityConfig = getGravityConfig(
+      platform.userData.gravityDirection || "down"
+    );
+    const ballNormalPosition = getPositionAlong(
+      ballPosition,
+      platformGravityConfig.normal
+    );
+    const ballSidePosition = getPositionAlong(
+      ballPosition,
+      platformGravityConfig.side
+    );
+    const platformNormalPosition = getPositionAlong(
+      platform.position,
+      platformGravityConfig.normal
+    );
+    const platformSidePosition = getPositionAlong(
+      platform.position,
+      platformGravityConfig.side
+    );
+    const gravityVelocity = getPositionAlong(
+      ballVelocity,
+      platformGravityConfig.gravity
+    );
 
     // Check collision based on platform shape
     if (platform.userData.isRoundPlatform) {
       // For round platforms, use distance-based collision detection
-      const dx = ballPosition.x - platform.position.x;
+      const dx = ballSidePosition - platformSidePosition;
       const dz = ballPosition.z - platform.position.z;
       const distanceSquared = dx * dx + dz * dz;
       const platformRadius = platform.userData.radius;
+      platformSurface = platformNormalPosition + 0.5;
 
       // Check if the ball is within the platform's radius and at the right height
       if (
         distanceSquared <= platformRadius * 0.9 * (platformRadius * 0.9) &&
-        Math.abs(ballPosition.y - ballRadius - (platform.position.y + 0.5)) <=
-        0.5 &&
-        ballVelocity.y <= 0 // Only count as collision when falling or stationary
+        Math.abs(ballNormalPosition - ballRadius - platformSurface) <= 0.5 &&
+        gravityVelocity >= 0 // Only count as collision when falling or stationary
       ) {
         collisionDetected = true;
-        platformY = platform.position.y + 0.5;
       }
     } else {
       // For rectangular platforms, use the existing box collision detection
       const platformBounds = {
-        minX: platform.position.x - platform.userData.width / 2,
-        maxX: platform.position.x + platform.userData.width / 2,
+        minSide: platformSidePosition - platform.userData.width / 2,
+        maxSide: platformSidePosition + platform.userData.width / 2,
         minZ: platform.position.z - platform.userData.depth / 2,
         maxZ: platform.position.z + platform.userData.depth / 2,
-        y: platform.position.y + 0.5, // Top of the platform
+        surface: platformNormalPosition + 0.5, // Supported face of the platform
       };
 
       // Improved collision detection that accounts for the ball's radius
       if (
-        ballPosition.x + ballRadius * 0.8 >= platformBounds.minX &&
-        ballPosition.x - ballRadius * 0.8 <= platformBounds.maxX &&
+        ballSidePosition + ballRadius * 0.8 >= platformBounds.minSide &&
+        ballSidePosition - ballRadius * 0.8 <= platformBounds.maxSide &&
         ballPosition.z + ballRadius * 0.8 >= platformBounds.minZ &&
         ballPosition.z - ballRadius * 0.8 <= platformBounds.maxZ &&
-        Math.abs(ballPosition.y - ballRadius - platformBounds.y) <= 0.5 &&
-        ballVelocity.y <= 0 // Only count as collision when falling or stationary
+        Math.abs(ballNormalPosition - ballRadius - platformBounds.surface) <=
+        0.5 &&
+        gravityVelocity >= 0 // Only count as collision when falling or stationary
       ) {
         collisionDetected = true;
-        platformY = platformBounds.y;
+        platformSurface = platformBounds.surface;
       }
     }
 
@@ -700,7 +808,13 @@ export function checkPlatformCollision(ballPosition, ballVelocity) {
         onPlatform: true,
         bounceEffect: platform.userData.bounceEffect,
         isRedFlagPlatform: platform.userData.isRedFlagPlatform,
-        platformY: platformY,
+        isTrampoline: platform.userData.isTrampoline,
+        isMovingPlatform: platform.userData.isMovingPlatform,
+        challengeType: platform.userData.challengeType || "regular",
+        platformId: platform.userData.id,
+        platform: platform,
+        platformSurface: platformSurface,
+        supportNormal: platform.userData.supportNormal,
         ballRadius: ballRadius,
       };
     }
@@ -711,6 +825,13 @@ export function checkPlatformCollision(ballPosition, ballVelocity) {
     onPlatform: false,
     bounceEffect: null,
     isRedFlagPlatform: false,
+    isTrampoline: false,
+    isMovingPlatform: false,
+    challengeType: "none",
+    platformId: null,
+    platform: null,
+    platformSurface: 0,
+    supportNormal: { x: 0, y: 1, z: 0 },
   };
 }
 
@@ -745,9 +866,14 @@ export function cleanupPlatforms(ballPosition, removeDistance, scene) {
  * @param {THREE.Scene} scene - The scene
  * @param {number} level - Current game level (for difficulty adjustment)
  */
-export function addPlatformsAsNeeded(scene, level = 1) {
+export function addPlatformsAsNeeded(
+  scene,
+  level = 1,
+  gravityDirection = activeGravityDirection,
+  sideOffset = 0
+) {
   while (lastPlatformPosition.z > GAME_SETTINGS.platformSpawnZ) {
-    createPlatform(false, scene, level);
+    createPlatform(false, scene, level, { gravityDirection, sideOffset });
   }
 }
 
@@ -789,6 +915,8 @@ export function resetPlatforms(scene) {
 
   platforms = [];
   redFlagPlatform = null;
+  nextPlatformId = 1;
+  activeGravityDirection = "down";
 
   // Reset platform position tracking
   lastPlatformPosition = { x: 0, y: 0, z: 0 };
@@ -1057,43 +1185,70 @@ export function getCurrentPlatform(ballPosition, ballVelocity) {
   const ballRadius = 1.0;
 
   for (const platform of platforms) {
+    if ((platform.userData.gravityDirection || "down") !== activeGravityDirection) {
+      continue;
+    }
     let collisionDetected = false;
+    const platformGravityConfig = getGravityConfig(
+      platform.userData.gravityDirection || "down"
+    );
+    const ballNormalPosition = getPositionAlong(
+      ballPosition,
+      platformGravityConfig.normal
+    );
+    const ballSidePosition = getPositionAlong(
+      ballPosition,
+      platformGravityConfig.side
+    );
+    const platformNormalPosition = getPositionAlong(
+      platform.position,
+      platformGravityConfig.normal
+    );
+    const platformSidePosition = getPositionAlong(
+      platform.position,
+      platformGravityConfig.side
+    );
+    const gravityVelocity = getPositionAlong(
+      ballVelocity,
+      platformGravityConfig.gravity
+    );
 
     // Check collision based on platform shape
     if (platform.userData.isRoundPlatform) {
       // For round platforms, use distance-based collision detection
-      const dx = ballPosition.x - platform.position.x;
+      const dx = ballSidePosition - platformSidePosition;
       const dz = ballPosition.z - platform.position.z;
       const distanceSquared = dx * dx + dz * dz;
       const platformRadius = platform.userData.radius;
+      const platformSurface = platformNormalPosition + 0.5;
 
       // Check if the ball is within the platform's radius and at the right height
       if (
         distanceSquared <= platformRadius * 0.9 * (platformRadius * 0.9) &&
-        Math.abs(ballPosition.y - ballRadius - (platform.position.y + 0.5)) <=
-        0.5 &&
-        ballVelocity.y <= 0 // Only count as collision when falling or stationary
+        Math.abs(ballNormalPosition - ballRadius - platformSurface) <= 0.5 &&
+        gravityVelocity >= 0 // Only count as collision when falling or stationary
       ) {
         collisionDetected = true;
       }
     } else {
       // For rectangular platforms, use the existing box collision detection
       const platformBounds = {
-        minX: platform.position.x - platform.userData.width / 2,
-        maxX: platform.position.x + platform.userData.width / 2,
+        minSide: platformSidePosition - platform.userData.width / 2,
+        maxSide: platformSidePosition + platform.userData.width / 2,
         minZ: platform.position.z - platform.userData.depth / 2,
         maxZ: platform.position.z + platform.userData.depth / 2,
-        y: platform.position.y + 0.5, // Top of the platform
+        surface: platformNormalPosition + 0.5, // Supported face
       };
 
       // Improved collision detection that accounts for the ball's radius
       if (
-        ballPosition.x + ballRadius * 0.8 >= platformBounds.minX &&
-        ballPosition.x - ballRadius * 0.8 <= platformBounds.maxX &&
+        ballSidePosition + ballRadius * 0.8 >= platformBounds.minSide &&
+        ballSidePosition - ballRadius * 0.8 <= platformBounds.maxSide &&
         ballPosition.z + ballRadius * 0.8 >= platformBounds.minZ &&
         ballPosition.z - ballRadius * 0.8 <= platformBounds.maxZ &&
-        Math.abs(ballPosition.y - ballRadius - platformBounds.y) <= 0.5 &&
-        ballVelocity.y <= 0 // Only count as collision when falling or stationary
+        Math.abs(ballNormalPosition - ballRadius - platformBounds.surface) <=
+        0.5 &&
+        gravityVelocity >= 0 // Only count as collision when falling or stationary
       ) {
         collisionDetected = true;
       }
