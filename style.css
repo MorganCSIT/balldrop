@@ -458,7 +458,7 @@ body {
 
 .touch-controls.joystick-style .direction-joystick {
   left: 28px;
-  bottom: 32px;
+  bottom: 4px;
 }
 
 .touch-controls.joystick-style .jump-button {
@@ -549,7 +549,7 @@ body {
 
   .touch-controls.joystick-style .direction-joystick {
     left: 24px;
-    bottom: 26px;
+    bottom: 4px;
   }
 
   .touch-controls.joystick-style .jump-button {
@@ -619,7 +619,7 @@ body {
 
   .touch-controls.joystick-style .direction-joystick {
     left: 16px;
-    bottom: 22px;
+    bottom: 4px;
   }
 
   .touch-controls.joystick-style .jump-button {
@@ -684,7 +684,7 @@ body {
 
   .touch-controls.joystick-style .direction-joystick {
     left: 22px;
-    bottom: 12px;
+    bottom: 4px;
   }
 
   .touch-controls.joystick-style .jump-button {
@@ -734,7 +734,7 @@ body {
 
   .touch-controls.joystick-style .direction-joystick {
     left: 20px;
-    bottom: 24px;
+    bottom: 4px;
   }
 
   .touch-controls.joystick-style .jump-button {
