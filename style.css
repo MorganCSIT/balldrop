@@ -462,12 +462,12 @@ body {
 }
 
 .touch-controls.joystick-style .jump-button {
-  right: 24px;
-  bottom: 190px;
+  right: 134px;
+  bottom: 78px;
 }
 
 .touch-controls.joystick-style .grab-button {
-  right: 58px;
+  right: 24px;
   bottom: 78px;
 }
 
@@ -553,12 +553,12 @@ body {
   }
 
   .touch-controls.joystick-style .jump-button {
-    right: 22px;
-    bottom: 178px;
+    right: 122px;
+    bottom: 76px;
   }
 
   .touch-controls.joystick-style .grab-button {
-    right: 54px;
+    right: 22px;
     bottom: 76px;
   }
 }
@@ -623,12 +623,12 @@ body {
   }
 
   .touch-controls.joystick-style .jump-button {
-    right: 18px;
-    bottom: 156px;
+    right: 98px;
+    bottom: 72px;
   }
 
   .touch-controls.joystick-style .grab-button {
-    right: 48px;
+    right: 18px;
     bottom: 72px;
   }
 
@@ -688,12 +688,12 @@ body {
   }
 
   .touch-controls.joystick-style .jump-button {
-    right: 28px;
-    bottom: 112px;
+    right: 118px;
+    bottom: 24px;
   }
 
   .touch-controls.joystick-style .grab-button {
-    right: 118px;
+    right: 28px;
     bottom: 24px;
   }
 }
@@ -738,12 +738,12 @@ body {
   }
 
   .touch-controls.joystick-style .jump-button {
-    right: 22px;
-    bottom: 166px;
+    right: 112px;
+    bottom: 74px;
   }
 
   .touch-controls.joystick-style .grab-button {
-    right: 50px;
+    right: 22px;
     bottom: 74px;
   }
 }
