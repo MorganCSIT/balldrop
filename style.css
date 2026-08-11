@@ -456,6 +456,21 @@ body {
   display: none;
 }
 
+.touch-controls.joystick-style .direction-joystick {
+  left: 28px;
+  bottom: 32px;
+}
+
+.touch-controls.joystick-style .jump-button {
+  right: 24px;
+  bottom: 190px;
+}
+
+.touch-controls.joystick-style .grab-button {
+  right: 58px;
+  bottom: 78px;
+}
+
 .touch-controls.button-style .direction-joystick {
   display: none;
 }
@@ -531,6 +546,21 @@ body {
     width: 140px;
     height: 140px;
   }
+
+  .touch-controls.joystick-style .direction-joystick {
+    left: 24px;
+    bottom: 26px;
+  }
+
+  .touch-controls.joystick-style .jump-button {
+    right: 22px;
+    bottom: 178px;
+  }
+
+  .touch-controls.joystick-style .grab-button {
+    right: 54px;
+    bottom: 76px;
+  }
 }
 
 /* Small screens (phones) */
@@ -587,6 +617,21 @@ body {
     height: 54px;
   }
 
+  .touch-controls.joystick-style .direction-joystick {
+    left: 16px;
+    bottom: 22px;
+  }
+
+  .touch-controls.joystick-style .jump-button {
+    right: 18px;
+    bottom: 156px;
+  }
+
+  .touch-controls.joystick-style .grab-button {
+    right: 48px;
+    bottom: 72px;
+  }
+
   .modal-content {
     width: 90%;
     padding: 20px;
@@ -636,6 +681,21 @@ body {
     width: 130px;
     height: 130px;
   }
+
+  .touch-controls.joystick-style .direction-joystick {
+    left: 22px;
+    bottom: 12px;
+  }
+
+  .touch-controls.joystick-style .jump-button {
+    right: 28px;
+    bottom: 112px;
+  }
+
+  .touch-controls.joystick-style .grab-button {
+    right: 118px;
+    bottom: 24px;
+  }
 }
 
 /* Add a new query for very large phones like iPhone Plus models */
@@ -670,5 +730,20 @@ body {
     bottom: 85px;
     width: 132px;
     height: 132px;
+  }
+
+  .touch-controls.joystick-style .direction-joystick {
+    left: 20px;
+    bottom: 24px;
+  }
+
+  .touch-controls.joystick-style .jump-button {
+    right: 22px;
+    bottom: 166px;
+  }
+
+  .touch-controls.joystick-style .grab-button {
+    right: 50px;
+    bottom: 74px;
   }
 }
